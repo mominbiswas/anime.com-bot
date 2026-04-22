@@ -9,6 +9,7 @@ import {
   GatewayIntentBits,
   MessageFlags,
   ModalBuilder,
+  PermissionFlagsBits,
   TextInputBuilder,
   TextInputStyle
 } from "discord.js";
@@ -24,6 +25,11 @@ import {
   setPendingLink,
   setLinkedUsername
 } from "./profileLinks.js";
+import {
+  addTrackedUsername,
+  getTrackedUsernames,
+  removeTrackedUsername
+} from "./trackedProfiles.js";
 
 const token = process.env.DISCORD_TOKEN;
 
@@ -302,7 +308,9 @@ function formatMetricLabel(metric) {
 function buildLeaderboardEmbed(metric, rows, totalLinkedUsers) {
   const metricLabel = formatMetricLabel(metric);
   const lines = rows.map((row, index) =>
-    `**${index + 1}.** <@${row.discordUserId}>  |  \`${row.value}\` ${metricLabel.toLowerCase()}  |  \`@${row.username}\``
+    row.discordUserId
+      ? `**${index + 1}.** <@${row.discordUserId}>  |  \`${row.value}\` ${metricLabel.toLowerCase()}  |  \`@${row.username}\``
+      : `**${index + 1}.** \`@${row.username}\`  |  \`${row.value}\` ${metricLabel.toLowerCase()}`
   );
 
   return {
@@ -310,7 +318,7 @@ function buildLeaderboardEmbed(metric, rows, totalLinkedUsers) {
     title: `${metricLabel} Leaderboard`,
     description: lines.join("\n"),
     footer: {
-      text: `Showing ${rows.length} of ${totalLinkedUsers} linked users`
+      text: `Showing ${rows.length} of ${totalLinkedUsers} linked and tracked users`
     }
   };
 }
@@ -432,7 +440,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     return;
   }
 
-  if (!["profile", "profile-raw", "badgeinfo", "listinfo", "link", "verify", "unlink", "stats", "leaderboard"].includes(interaction.commandName)) {
+  if (!["profile", "profile-raw", "badgeinfo", "listinfo", "link", "verify", "unlink", "stats", "leaderboard", "track", "untrack"].includes(interaction.commandName)) {
     return;
   }
 
@@ -546,20 +554,89 @@ client.on(Events.InteractionCreate, async (interaction) => {
       return;
     }
 
+    if (interaction.commandName === "track") {
+      if (!interaction.inGuild() || !interaction.guildId) {
+        await interaction.editReply("`/track` only works inside a server.");
+        return;
+      }
+
+      if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
+        await interaction.editReply("You need the `Manage Server` permission to track Anime.com profiles here.");
+        return;
+      }
+
+      const username = interaction.options.getString("username", true).trim().replace(/^@/, "");
+      const profile = await fetchAnimeProfile(username);
+
+      if (!profile) {
+        await interaction.editReply(`No public Anime.com profile was found for \`${username}\`.`);
+        return;
+      }
+
+      const added = await addTrackedUsername(interaction.guildId, profile.username);
+
+      await interaction.editReply(
+        added
+          ? `Now tracking \`@${profile.username}\` for this server's leaderboard. They will appear in \`/leaderboard\` even without linking.`
+          : `\`@${profile.username}\` is already being tracked for this server.`
+      );
+      return;
+    }
+
+    if (interaction.commandName === "untrack") {
+      if (!interaction.inGuild() || !interaction.guildId) {
+        await interaction.editReply("`/untrack` only works inside a server.");
+        return;
+      }
+
+      if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
+        await interaction.editReply("You need the `Manage Server` permission to remove tracked Anime.com profiles here.");
+        return;
+      }
+
+      const username = interaction.options.getString("username", true).trim().replace(/^@/, "");
+      const removed = await removeTrackedUsername(interaction.guildId, username);
+
+      await interaction.editReply(
+        removed
+          ? `Stopped tracking \`@${username}\` for this server.`
+          : `\`@${username}\` is not currently tracked for this server.`
+      );
+      return;
+    }
+
     if (interaction.commandName === "leaderboard") {
       const metric = interaction.options.getString("metric", true);
       const limit = interaction.options.getInteger("limit") ?? 10;
       const linkedProfiles = await getAllLinkedProfiles();
+      const trackedUsernames = interaction.guildId ? await getTrackedUsernames(interaction.guildId) : [];
+      const mergedProfiles = new Map();
 
-      if (!linkedProfiles.length) {
+      for (const { discordUserId, username } of linkedProfiles) {
+        mergedProfiles.set(username.toLowerCase(), {
+          discordUserId,
+          username
+        });
+      }
+
+      for (const username of trackedUsernames) {
+        const key = username.toLowerCase();
+        const existing = mergedProfiles.get(key);
+        mergedProfiles.set(key, {
+          discordUserId: existing?.discordUserId ?? null,
+          username: existing?.username ?? username
+        });
+      }
+
+      if (!mergedProfiles.size) {
         await interaction.editReply(
-          "No Anime.com accounts are linked yet, so there is nothing to rank. Once people link with `/link`, the leaderboard will show up here."
+          "There are no linked or tracked Anime.com accounts to rank yet. Use `/link` or have an admin add profiles with `/track` first."
         );
         return;
       }
 
       const fetchedProfiles = await Promise.allSettled(
-        linkedProfiles.map(async ({ discordUserId, username }) => {
+        [...mergedProfiles.values()].map(async ({ discordUserId, username }) => {
           const profile = await fetchAnimeProfile(username);
 
           if (!profile) {
@@ -588,13 +665,13 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
       if (!rankedRows.length) {
         await interaction.editReply(
-          `I couldn't build a ${formatMetricLabel(metric).toLowerCase()} leaderboard from the currently linked accounts.`
+          `I couldn't build a ${formatMetricLabel(metric).toLowerCase()} leaderboard from the linked and tracked accounts right now.`
         );
         return;
       }
 
       await interaction.editReply({
-        embeds: [buildLeaderboardEmbed(metric, rankedRows, linkedProfiles.length)]
+        embeds: [buildLeaderboardEmbed(metric, rankedRows, mergedProfiles.size)]
       });
       return;
     }

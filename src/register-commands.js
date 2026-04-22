@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { REST, Routes, SlashCommandBuilder } from "discord.js";
+import { PermissionFlagsBits, REST, Routes, SlashCommandBuilder } from "discord.js";
 
 const token = process.env.DISCORD_TOKEN;
 const clientId = process.env.DISCORD_CLIENT_ID;
@@ -26,7 +26,7 @@ const commands = [
     .toJSON(),
   new SlashCommandBuilder()
     .setName("leaderboard")
-    .setDescription("Rank linked users by an Anime.com stat.")
+    .setDescription("Rank linked and tracked users by an Anime.com stat.")
     .addStringOption((option) =>
       option
         .setName("metric")
@@ -43,6 +43,28 @@ const commands = [
         .setDescription("How many users to show")
         .setMinValue(1)
         .setMaxValue(20)
+    )
+    .toJSON(),
+  new SlashCommandBuilder()
+    .setName("track")
+    .setDescription("Track an Anime.com username for this server's leaderboard.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
+    .addStringOption((option) =>
+      option
+        .setName("username")
+        .setDescription("Anime.com username, with or without @")
+        .setRequired(true)
+    )
+    .toJSON(),
+  new SlashCommandBuilder()
+    .setName("untrack")
+    .setDescription("Remove a tracked Anime.com username from this server.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
+    .addStringOption((option) =>
+      option
+        .setName("username")
+        .setDescription("Anime.com username, with or without @")
+        .setRequired(true)
     )
     .toJSON(),
   new SlashCommandBuilder()
