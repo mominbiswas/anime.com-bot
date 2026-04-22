@@ -22,7 +22,28 @@ const commands = [
     .toJSON(),
   new SlashCommandBuilder()
     .setName("stats")
-    .setDescription("Show Anime.com stats for your linked profile or a specific username.")
+    .setDescription("Show Anime.com stats for your linked profile.")
+    .toJSON(),
+  new SlashCommandBuilder()
+    .setName("leaderboard")
+    .setDescription("Rank linked users by an Anime.com stat.")
+    .addStringOption((option) =>
+      option
+        .setName("metric")
+        .setDescription("Which stat to rank by")
+        .setRequired(true)
+        .addChoices(
+          { name: "Aura", value: "aura" },
+          { name: "Followers", value: "followers" }
+        )
+    )
+    .addIntegerOption((option) =>
+      option
+        .setName("limit")
+        .setDescription("How many users to show")
+        .setMinValue(1)
+        .setMaxValue(20)
+    )
     .toJSON(),
   new SlashCommandBuilder()
     .setName("link")

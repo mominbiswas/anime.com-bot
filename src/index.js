@@ -17,6 +17,7 @@ import { renderBadgeIcon } from "./badgeIcons.js";
 import { renderBadgeStrip } from "./badgeStrip.js";
 import {
   getPendingLink,
+  getAllLinkedProfiles,
   getLinkedUsername,
   removePendingLink,
   removeLinkedUsername,
@@ -280,6 +281,40 @@ function buildListInfoComponents(listInfo, page, perPage) {
   ];
 }
 
+function parseMetricValue(profile, metric) {
+  const rawValue = profile[metric];
+
+  if (rawValue == null) {
+    return null;
+  }
+
+  const numericValue = Number(rawValue);
+  return Number.isFinite(numericValue) ? numericValue : null;
+}
+
+function formatMetricLabel(metric) {
+  return {
+    aura: "Aura",
+    followers: "Followers"
+  }[metric] ?? metric;
+}
+
+function buildLeaderboardEmbed(metric, rows, totalLinkedUsers) {
+  const metricLabel = formatMetricLabel(metric);
+  const lines = rows.map((row, index) =>
+    `**${index + 1}.** <@${row.discordUserId}>  |  \`${row.value}\` ${metricLabel.toLowerCase()}  |  \`@${row.username}\``
+  );
+
+  return {
+    color: 0xf4d35e,
+    title: `${metricLabel} Leaderboard`,
+    description: lines.join("\n"),
+    footer: {
+      text: `Showing ${rows.length} of ${totalLinkedUsers} linked users`
+    }
+  };
+}
+
 client.once(Events.ClientReady, (readyClient) => {
   console.log(`Logged in as ${readyClient.user.tag}`);
 });
@@ -397,7 +432,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     return;
   }
 
-  if (!["profile", "profile-raw", "badgeinfo", "listinfo", "link", "verify", "unlink", "stats"].includes(interaction.commandName)) {
+  if (!["profile", "profile-raw", "badgeinfo", "listinfo", "link", "verify", "unlink", "stats", "leaderboard"].includes(interaction.commandName)) {
     return;
   }
 
@@ -508,6 +543,59 @@ client.on(Events.InteractionCreate, async (interaction) => {
       }
 
       await interaction.editReply({ embeds: [embed] });
+      return;
+    }
+
+    if (interaction.commandName === "leaderboard") {
+      const metric = interaction.options.getString("metric", true);
+      const limit = interaction.options.getInteger("limit") ?? 10;
+      const linkedProfiles = await getAllLinkedProfiles();
+
+      if (!linkedProfiles.length) {
+        await interaction.editReply(
+          "No Anime.com accounts are linked yet, so there is nothing to rank. Once people link with `/link`, the leaderboard will show up here."
+        );
+        return;
+      }
+
+      const fetchedProfiles = await Promise.allSettled(
+        linkedProfiles.map(async ({ discordUserId, username }) => {
+          const profile = await fetchAnimeProfile(username);
+
+          if (!profile) {
+            return null;
+          }
+
+          const value = parseMetricValue(profile, metric);
+
+          if (value == null) {
+            return null;
+          }
+
+          return {
+            discordUserId,
+            username: profile.username,
+            value
+          };
+        })
+      );
+
+      const rankedRows = fetchedProfiles
+        .filter((result) => result.status === "fulfilled" && result.value)
+        .map((result) => result.value)
+        .sort((left, right) => right.value - left.value)
+        .slice(0, limit);
+
+      if (!rankedRows.length) {
+        await interaction.editReply(
+          `I couldn't build a ${formatMetricLabel(metric).toLowerCase()} leaderboard from the currently linked accounts.`
+        );
+        return;
+      }
+
+      await interaction.editReply({
+        embeds: [buildLeaderboardEmbed(metric, rankedRows, linkedProfiles.length)]
+      });
       return;
     }
 

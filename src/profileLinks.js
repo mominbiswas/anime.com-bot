@@ -36,6 +36,17 @@ export async function getLinkedUsername(discordUserId) {
   return links[discordUserId] ?? null;
 }
 
+export async function getAllLinkedProfiles() {
+  const links = await readLinks();
+
+  return Object.entries(links)
+    .filter(([key, value]) => !key.startsWith("pending:") && typeof value === "string" && value)
+    .map(([discordUserId, username]) => ({
+      discordUserId,
+      username
+    }));
+}
+
 export async function setLinkedUsername(discordUserId, username) {
   const links = await readLinks();
   links[discordUserId] = username;
