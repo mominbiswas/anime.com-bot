@@ -94,6 +94,22 @@ function formatRank(rank) {
   return rank ? `Rank #${rank}` : "Unranked";
 }
 
+function buildSpacedStatFields(stats) {
+  const filteredStats = stats.filter(Boolean);
+  const fields = [];
+
+  for (let index = 0; index < filteredStats.length; index += 2) {
+    fields.push(filteredStats[index]);
+
+    if (filteredStats[index + 1]) {
+      fields.push({ name: "\u200b", value: "\u200b", inline: true });
+      fields.push(filteredStats[index + 1]);
+    }
+  }
+
+  return fields;
+}
+
 function buildProfileEmbed(profile, ranks = null) {
   const rankParts = [];
 
@@ -115,7 +131,7 @@ function buildProfileEmbed(profile, ranks = null) {
     descriptionParts.push(profile.bio);
   }
 
-  const fields = [
+  const fields = buildSpacedStatFields([
     profile.aura ? { name: "Aura", value: profile.aura, inline: true } : null,
     profile.joinDate ? { name: "Joined", value: profile.joinDate, inline: true } : null,
     profile.lastUpdated ? { name: "Updated", value: profile.lastUpdated, inline: true } : null,
@@ -128,7 +144,7 @@ function buildProfileEmbed(profile, ranks = null) {
     profile.seriesWatching ? { name: "Watching", value: profile.seriesWatching, inline: true } : null,
     profile.seriesPlanning ? { name: "Planning", value: profile.seriesPlanning, inline: true } : null,
     profile.seriesCompleted ? { name: "Completed", value: profile.seriesCompleted, inline: true } : null,
-  ].filter(Boolean);
+  ]);
 
   return {
     color: parseColor(profile.accentColor),
