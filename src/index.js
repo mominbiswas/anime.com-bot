@@ -287,6 +287,43 @@ function buildListInfoComponents(listInfo, page, perPage) {
   ];
 }
 
+function buildLeaderboardCustomId({ metric, page, perPage, guildId }) {
+  return `leaderboard:${metric}:${page}:${perPage}:${guildId ?? "noguild"}`;
+}
+
+function buildLeaderboardJumpCustomId({ metric, perPage, guildId }) {
+  return `leaderboardjump:${metric}:${perPage}:${guildId ?? "noguild"}`;
+}
+
+function parseLeaderboardCustomId(customId) {
+  const parts = customId.split(":");
+
+  if (parts.length !== 5 || parts[0] !== "leaderboard") {
+    return null;
+  }
+
+  return {
+    metric: parts[1],
+    page: Number(parts[2]),
+    perPage: Number(parts[3]),
+    guildId: parts[4] === "noguild" ? null : parts[4]
+  };
+}
+
+function parseLeaderboardJumpCustomId(customId) {
+  const parts = customId.split(":");
+
+  if (parts.length !== 4 || parts[0] !== "leaderboardjump") {
+    return null;
+  }
+
+  return {
+    metric: parts[1],
+    perPage: Number(parts[2]),
+    guildId: parts[3] === "noguild" ? null : parts[3]
+  };
+}
+
 function parseMetricValue(profile, metric) {
   const rawValue = profile[metric];
 
@@ -305,21 +342,124 @@ function formatMetricLabel(metric) {
   }[metric] ?? metric;
 }
 
-function buildLeaderboardEmbed(metric, rows, totalLinkedUsers) {
+function buildLeaderboardEmbed(metric, rows, totalUsers, page, perPage) {
   const metricLabel = formatMetricLabel(metric);
-  const lines = rows.map((row, index) =>
+  const start = page * perPage;
+  const visibleRows = rows.slice(start, start + perPage);
+  const lines = visibleRows.map((row, index) =>
     row.discordUserId
-      ? `**${index + 1}.** <@${row.discordUserId}>  |  \`${row.value}\` ${metricLabel.toLowerCase()}  |  \`@${row.username}\``
-      : `**${index + 1}.** \`@${row.username}\`  |  \`${row.value}\` ${metricLabel.toLowerCase()}`
+      ? `**${start + index + 1}.** <@${row.discordUserId}>  |  \`${row.value}\` ${metricLabel.toLowerCase()}  |  \`@${row.username}\``
+      : `**${start + index + 1}.** \`@${row.username}\`  |  \`${row.value}\` ${metricLabel.toLowerCase()}`
   );
+  const totalPages = Math.max(1, Math.ceil(rows.length / perPage));
 
   return {
     color: 0xf4d35e,
     title: `${metricLabel} Leaderboard`,
     description: lines.join("\n"),
     footer: {
-      text: `Showing ${rows.length} of ${totalLinkedUsers} linked and tracked users`
+      text: `Page ${page + 1}/${totalPages} | Showing ${visibleRows.length ? start + 1 : 0}-${Math.min(start + visibleRows.length, rows.length)} of ${totalUsers} linked and tracked users`
     }
+  };
+}
+
+function buildLeaderboardComponents(metric, rows, page, perPage, guildId) {
+  const totalPages = Math.max(1, Math.ceil(rows.length / perPage));
+
+  if (totalPages <= 1) {
+    return [];
+  }
+
+  return [
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(buildLeaderboardCustomId({
+          metric,
+          page: page - 1,
+          perPage,
+          guildId
+        }))
+        .setLabel("Previous")
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(page <= 0),
+      new ButtonBuilder()
+        .setCustomId(buildLeaderboardCustomId({
+          metric,
+          page: page + 1,
+          perPage,
+          guildId
+        }))
+        .setLabel("Next")
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(page >= totalPages - 1),
+      new ButtonBuilder()
+        .setCustomId(buildLeaderboardJumpCustomId({
+          metric,
+          perPage,
+          guildId
+        }))
+        .setLabel("Jump")
+        .setStyle(ButtonStyle.Primary)
+    )
+  ];
+}
+
+async function fetchLeaderboardRows(metric, guildId) {
+  const linkedProfiles = await getAllLinkedProfiles();
+  const trackedUsernames = guildId ? await getTrackedUsernames(guildId) : [];
+  const mergedProfiles = new Map();
+
+  for (const { discordUserId, username } of linkedProfiles) {
+    mergedProfiles.set(username.toLowerCase(), {
+      discordUserId,
+      username
+    });
+  }
+
+  for (const username of trackedUsernames) {
+    const key = username.toLowerCase();
+    const existing = mergedProfiles.get(key);
+    mergedProfiles.set(key, {
+      discordUserId: existing?.discordUserId ?? null,
+      username: existing?.username ?? username
+    });
+  }
+
+  if (!mergedProfiles.size) {
+    return {
+      totalUsers: 0,
+      rows: []
+    };
+  }
+
+  const fetchedProfiles = await Promise.allSettled(
+    [...mergedProfiles.values()].map(async ({ discordUserId, username }) => {
+      const profile = await fetchAnimeProfile(username);
+
+      if (!profile) {
+        return null;
+      }
+
+      const value = parseMetricValue(profile, metric);
+
+      if (value == null) {
+        return null;
+      }
+
+      return {
+        discordUserId,
+        username: profile.username,
+        value
+      };
+    })
+  );
+
+  return {
+    totalUsers: mergedProfiles.size,
+    rows: fetchedProfiles
+      .filter((result) => result.status === "fulfilled" && result.value)
+      .map((result) => result.value)
+      .sort((left, right) => right.value - left.value)
   };
 }
 
@@ -332,9 +472,63 @@ client.on(Events.InteractionCreate, async (interaction) => {
     const parsed = parseListInfoCustomId(interaction.customId);
 
     if (!parsed) {
+      const leaderboardParsed = parseLeaderboardCustomId(interaction.customId);
+
+      if (leaderboardParsed) {
+        await interaction.deferUpdate();
+
+        try {
+          const leaderboard = await fetchLeaderboardRows(leaderboardParsed.metric, leaderboardParsed.guildId);
+
+          if (!leaderboard.rows.length) {
+            await interaction.editReply({
+              content: `I couldn't build a ${formatMetricLabel(leaderboardParsed.metric).toLowerCase()} leaderboard from the linked and tracked accounts right now.`,
+              embeds: [],
+              components: []
+            });
+            return;
+          }
+
+          const totalPages = Math.max(1, Math.ceil(leaderboard.rows.length / leaderboardParsed.perPage));
+          const safePage = Math.min(Math.max(leaderboardParsed.page, 0), totalPages - 1);
+
+          await interaction.editReply({
+            embeds: [buildLeaderboardEmbed(leaderboardParsed.metric, leaderboard.rows, leaderboard.totalUsers, safePage, leaderboardParsed.perPage)],
+            components: buildLeaderboardComponents(leaderboardParsed.metric, leaderboard.rows, safePage, leaderboardParsed.perPage, leaderboardParsed.guildId)
+          });
+        } catch (error) {
+          console.error(error);
+          await interaction.editReply({
+            content: "I couldn't fetch that Anime.com leaderboard right now.",
+            embeds: [],
+            components: []
+          });
+        }
+        return;
+      }
+
       const jump = parseListInfoJumpCustomId(interaction.customId);
 
       if (!jump) {
+        const leaderboardJump = parseLeaderboardJumpCustomId(interaction.customId);
+
+        if (!leaderboardJump) {
+          return;
+        }
+
+        const modal = new ModalBuilder()
+          .setCustomId(interaction.customId)
+          .setTitle("Jump to Page");
+
+        const pageInput = new TextInputBuilder()
+          .setCustomId("page")
+          .setLabel("Page number")
+          .setStyle(TextInputStyle.Short)
+          .setRequired(true)
+          .setPlaceholder("Enter a page number, e.g. 3");
+
+        modal.addComponents(new ActionRowBuilder().addComponents(pageInput));
+        await interaction.showModal(modal);
         return;
       }
 
@@ -390,6 +584,52 @@ client.on(Events.InteractionCreate, async (interaction) => {
     const jump = parseListInfoJumpCustomId(interaction.customId);
 
     if (!jump) {
+      const leaderboardJump = parseLeaderboardJumpCustomId(interaction.customId);
+
+      if (!leaderboardJump) {
+        return;
+      }
+
+      const pageValue = interaction.fields.getTextInputValue("page");
+      const requestedPage = Number.parseInt(pageValue, 10);
+
+      if (!Number.isFinite(requestedPage) || requestedPage < 1) {
+        await interaction.reply({
+          content: "Please enter a valid page number greater than 0.",
+          ephemeral: true
+        });
+        return;
+      }
+
+      await interaction.deferUpdate();
+
+      try {
+        const leaderboard = await fetchLeaderboardRows(leaderboardJump.metric, leaderboardJump.guildId);
+
+        if (!leaderboard.rows.length) {
+          await interaction.editReply({
+            content: `I couldn't build a ${formatMetricLabel(leaderboardJump.metric).toLowerCase()} leaderboard from the linked and tracked accounts right now.`,
+            embeds: [],
+            components: []
+          });
+          return;
+        }
+
+        const totalPages = Math.max(1, Math.ceil(leaderboard.rows.length / leaderboardJump.perPage));
+        const safePage = Math.min(Math.max(requestedPage - 1, 0), totalPages - 1);
+
+        await interaction.editReply({
+          embeds: [buildLeaderboardEmbed(leaderboardJump.metric, leaderboard.rows, leaderboard.totalUsers, safePage, leaderboardJump.perPage)],
+          components: buildLeaderboardComponents(leaderboardJump.metric, leaderboard.rows, safePage, leaderboardJump.perPage, leaderboardJump.guildId)
+        });
+      } catch (error) {
+        console.error(error);
+        await interaction.editReply({
+          content: "I couldn't fetch that Anime.com leaderboard right now.",
+          embeds: [],
+          components: []
+        });
+      }
       return;
     }
 
@@ -607,63 +847,17 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
     if (interaction.commandName === "leaderboard") {
       const metric = interaction.options.getString("metric", true);
-      const limit = interaction.options.getInteger("limit") ?? 10;
-      const linkedProfiles = await getAllLinkedProfiles();
-      const trackedUsernames = interaction.guildId ? await getTrackedUsernames(interaction.guildId) : [];
-      const mergedProfiles = new Map();
+      const perPage = interaction.options.getInteger("limit") ?? 10;
+      const leaderboard = await fetchLeaderboardRows(metric, interaction.guildId);
 
-      for (const { discordUserId, username } of linkedProfiles) {
-        mergedProfiles.set(username.toLowerCase(), {
-          discordUserId,
-          username
-        });
-      }
-
-      for (const username of trackedUsernames) {
-        const key = username.toLowerCase();
-        const existing = mergedProfiles.get(key);
-        mergedProfiles.set(key, {
-          discordUserId: existing?.discordUserId ?? null,
-          username: existing?.username ?? username
-        });
-      }
-
-      if (!mergedProfiles.size) {
+      if (!leaderboard.totalUsers) {
         await interaction.editReply(
           "There are no linked or tracked Anime.com accounts to rank yet. Use `/link` or have an admin add profiles with `/track` first."
         );
         return;
       }
 
-      const fetchedProfiles = await Promise.allSettled(
-        [...mergedProfiles.values()].map(async ({ discordUserId, username }) => {
-          const profile = await fetchAnimeProfile(username);
-
-          if (!profile) {
-            return null;
-          }
-
-          const value = parseMetricValue(profile, metric);
-
-          if (value == null) {
-            return null;
-          }
-
-          return {
-            discordUserId,
-            username: profile.username,
-            value
-          };
-        })
-      );
-
-      const rankedRows = fetchedProfiles
-        .filter((result) => result.status === "fulfilled" && result.value)
-        .map((result) => result.value)
-        .sort((left, right) => right.value - left.value)
-        .slice(0, limit);
-
-      if (!rankedRows.length) {
+      if (!leaderboard.rows.length) {
         await interaction.editReply(
           `I couldn't build a ${formatMetricLabel(metric).toLowerCase()} leaderboard from the linked and tracked accounts right now.`
         );
@@ -671,7 +865,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
       }
 
       await interaction.editReply({
-        embeds: [buildLeaderboardEmbed(metric, rankedRows, mergedProfiles.size)]
+        embeds: [buildLeaderboardEmbed(metric, leaderboard.rows, leaderboard.totalUsers, 0, perPage)],
+        components: buildLeaderboardComponents(metric, leaderboard.rows, 0, perPage, interaction.guildId)
       });
       return;
     }
