@@ -17,9 +17,11 @@ import { fetchAnimeListInfo, fetchAnimeProfile } from "./animeProfile.js";
 import { renderBadgeIcon } from "./badgeIcons.js";
 import { renderBadgeStrip } from "./badgeStrip.js";
 import {
+  getAllForcedUnlinkedUsernames,
   getPendingLink,
   getAllLinkedProfiles,
   getLinkedUsername,
+  markUsernameForcedUnlinked,
   removePendingLink,
   removeLinkedUsername,
   setPendingLink,
@@ -406,10 +408,15 @@ function buildLeaderboardComponents(metric, rows, page, perPage, guildId) {
 
 async function fetchLeaderboardRows(metric, guildId) {
   const linkedProfiles = await getAllLinkedProfiles();
+  const forcedUnlinkedUsernames = new Set(await getAllForcedUnlinkedUsernames());
   const trackedUsernames = await getTrackedUsernames();
   const mergedProfiles = new Map();
 
   for (const { discordUserId, username } of linkedProfiles) {
+    if (forcedUnlinkedUsernames.has(username.toLowerCase())) {
+      continue;
+    }
+
     mergedProfiles.set(username.toLowerCase(), {
       discordUserId,
       username
@@ -759,6 +766,10 @@ client.on(Events.InteractionCreate, async (interaction) => {
         } catch {
           // Keep unlink working even if tracked-profile storage fails.
         }
+      }
+
+      if (linkedUsername) {
+        await markUsernameForcedUnlinked(interaction.user.id, linkedUsername);
       }
 
       const removed = await removeLinkedUsername(interaction.user.id);
