@@ -1,4 +1,5 @@
 import sharp from "sharp";
+import { readFile } from "node:fs/promises";
 import { renderBadgeIcon } from "./badgeIcons.js";
 
 const GAP = 4;
@@ -8,93 +9,15 @@ const ICON_SIZE = 25;
 const MAX_PER_ROW = 8;
 const LABEL_HEIGHT = 16;
 const LABEL_GAP = 4;
-const LABEL_COLOR = "#ffffff";
-const PIXEL_SIZE = 2;
-const LETTER_SPACING = 2;
-const BADGES_GLYPHS = {
-  B: [
-    "11110",
-    "10001",
-    "10001",
-    "11110",
-    "10001",
-    "10001",
-    "11110"
-  ],
-  a: [
-    "00000",
-    "01110",
-    "00001",
-    "01111",
-    "10001",
-    "10011",
-    "01101"
-  ],
-  d: [
-    "00001",
-    "00001",
-    "01111",
-    "10001",
-    "10001",
-    "10011",
-    "01101"
-  ],
-  g: [
-    "00000",
-    "01101",
-    "10011",
-    "10001",
-    "01111",
-    "00001",
-    "01110"
-  ],
-  e: [
-    "00000",
-    "01110",
-    "10001",
-    "11111",
-    "10000",
-    "10001",
-    "01110"
-  ],
-  s: [
-    "00000",
-    "01111",
-    "10000",
-    "01110",
-    "00001",
-    "00001",
-    "11110"
-  ]
-};
+const labelAssetPath = new URL("../assets/badges-label.png", import.meta.url);
+let labelAssetBuffer;
 
-function buildLabelSvg(width) {
-  let x = PADDING_X;
-  const rects = [];
-
-  for (const character of "Badges") {
-    const glyph = BADGES_GLYPHS[character];
-
-    for (let row = 0; row < glyph.length; row += 1) {
-      for (let column = 0; column < glyph[row].length; column += 1) {
-        if (glyph[row][column] !== "1") {
-          continue;
-        }
-
-        rects.push(
-          `<rect x="${x + column * PIXEL_SIZE}" y="${1 + row * PIXEL_SIZE}" width="${PIXEL_SIZE}" height="${PIXEL_SIZE}" fill="${LABEL_COLOR}" />`
-        );
-      }
-    }
-
-    x += glyph[0].length * PIXEL_SIZE + LETTER_SPACING;
+async function getLabelAsset() {
+  if (!labelAssetBuffer) {
+    labelAssetBuffer = await readFile(labelAssetPath);
   }
 
-  return Buffer.from(`
-    <svg width="${width}" height="${LABEL_HEIGHT}" xmlns="http://www.w3.org/2000/svg">
-      ${rects.join("")}
-    </svg>
-  `);
+  return labelAssetBuffer;
 }
 
 export async function renderBadgeStrip(badges) {
@@ -110,7 +33,7 @@ export async function renderBadgeStrip(badges) {
   const iconTop = PADDING_Y + LABEL_HEIGHT + LABEL_GAP;
   const height = iconTop + rows * ICON_SIZE + (rows - 1) * GAP + PADDING_Y;
 
-  const composites = [{ input: buildLabelSvg(width), left: 0, top: PADDING_Y }];
+  const composites = [{ input: await getLabelAsset(), left: PADDING_X, top: PADDING_Y }];
 
   for (let index = 0; index < items.length; index += 1) {
     const badge = items[index];
