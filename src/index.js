@@ -95,21 +95,21 @@ function formatRank(rank) {
 }
 
 function buildProfileEmbed(profile, ranks = null) {
-  const auraValue = profile.aura
-    ? ranks?.aura
-      ? `${profile.aura} | ${formatRank(ranks.aura)}`
-      : profile.aura
-    : null;
-  const followersValue = profile.followers
-    ? ranks?.followers
-      ? `${profile.followers} | ${formatRank(ranks.followers)}`
-      : profile.followers
-    : null;
+  const titleParts = [profile.name];
+
+  if (ranks?.aura) {
+    titleParts.push(`Aura #${ranks.aura}`);
+  }
+
+  if (ranks?.followers) {
+    titleParts.push(`Followers #${ranks.followers}`);
+  }
+
   const fields = [
-    auraValue ? { name: "Aura", value: auraValue, inline: true } : null,
+    profile.aura ? { name: "Aura", value: profile.aura, inline: true } : null,
     profile.joinDate ? { name: "Joined", value: profile.joinDate, inline: true } : null,
     profile.lastUpdated ? { name: "Updated", value: profile.lastUpdated, inline: true } : null,
-    followersValue ? { name: "Followers", value: followersValue, inline: true } : null,
+    profile.followers ? { name: "Followers", value: profile.followers, inline: true } : null,
     profile.following ? { name: "Following", value: profile.following, inline: true } : null,
     profile.comments ? { name: "Comments", value: profile.comments, inline: true } : null,
     profile.lists ? { name: "Lists", value: profile.lists, inline: true } : null,
@@ -121,7 +121,7 @@ function buildProfileEmbed(profile, ranks = null) {
 
   return {
     color: parseColor(profile.accentColor),
-    title: profile.name,
+    title: titleParts.join("  •  "),
     url: profile.profileUrl,
     description:
       profile.bio || `Public Anime.com profile for @${profile.username}.`,
