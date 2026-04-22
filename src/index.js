@@ -94,9 +94,10 @@ function buildProfileEmbed(profile) {
     color: parseColor(profile.accentColor),
     title: profile.name,
     url: profile.profileUrl,
-    description:
-      profile.bio ||
-      `Public Anime.com profile for @${profile.username}.`,
+    description: [
+      profile.bio || `Public Anime.com profile for @${profile.username}.`,
+      profile.displayedBadges?.length ? "**Badges**" : null
+    ].filter(Boolean).join("\n\n"),
     fields,
     thumbnail: profile.avatarUrl ? { url: profile.avatarUrl } : undefined,
     footer: {
