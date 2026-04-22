@@ -125,6 +125,7 @@ function buildProfileEmbed(profile, ranks = null) {
     profile.lists ? { name: "Lists", value: profile.lists, inline: true } : null,
     profile.reviews ? { name: "Reviews", value: profile.reviews, inline: true } : null,
     profile.seriesCompleted ? { name: "Series Completed", value: profile.seriesCompleted, inline: true } : null,
+    profile.seriesWatching || profile.avgSeriesRating ? { name: "\u200b", value: "\u200b", inline: true } : null,
     profile.seriesWatching ? { name: "Series Watching", value: profile.seriesWatching, inline: true } : null,
     profile.avgSeriesRating ? { name: "Avg Series Rating", value: profile.avgSeriesRating, inline: true } : null
   ].filter(Boolean);
