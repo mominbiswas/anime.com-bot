@@ -106,9 +106,10 @@ function buildProfileEmbed(profile, ranks = null) {
     profile.reviews ? { name: "Reviews", value: profile.reviews, inline: true } : null,
     profile.seriesCompleted ? { name: "Series Completed", value: profile.seriesCompleted, inline: true } : null,
     profile.seriesWatching ? { name: "Series Watching", value: profile.seriesWatching, inline: true } : null,
+    profile.avgSeriesRating || ranks ? { name: "\u200b", value: "\u200b", inline: true } : null,
     profile.avgSeriesRating ? { name: "Avg Series Rating", value: profile.avgSeriesRating, inline: true } : null,
+    ranks ? { name: "Followers Rank", value: formatRank(ranks.followers), inline: true } : null,
     ranks ? { name: "Aura Rank", value: formatRank(ranks.aura), inline: true } : null,
-    ranks ? { name: "Followers Rank", value: formatRank(ranks.followers), inline: true } : null
   ].filter(Boolean);
 
   return {
