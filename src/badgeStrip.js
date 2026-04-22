@@ -7,8 +7,8 @@ const PADDING_X = 6;
 const PADDING_Y = 6;
 const ICON_SIZE = 25;
 const MAX_PER_ROW = 8;
-const LABEL_HEIGHT = 16;
-const LABEL_GAP = 4;
+const LABEL_HEIGHT = 20;
+const LABEL_GAP = 3;
 const labelAssetPath = new URL("../assets/badges-label.png", import.meta.url);
 let labelAssetBuffer;
 
