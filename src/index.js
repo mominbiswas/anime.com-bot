@@ -107,7 +107,9 @@ function buildProfileEmbed(profile) {
 function buildBadgeEmbed(profile) {
   return {
     color: parseColor(profile.accentColor),
-    title: "Badges",
+    author: {
+      name: "Badges"
+    },
     image: { url: "attachment://badges.png" }
   };
 }
