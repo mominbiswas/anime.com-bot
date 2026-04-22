@@ -95,14 +95,24 @@ function formatRank(rank) {
 }
 
 function buildProfileEmbed(profile, ranks = null) {
-  const titleParts = [profile.name];
+  const rankParts = [];
 
   if (ranks?.aura) {
-    titleParts.push(`Aura #${ranks.aura}`);
+    rankParts.push(`Aura Rank #${ranks.aura}`);
   }
 
   if (ranks?.followers) {
-    titleParts.push(`Followers #${ranks.followers}`);
+    rankParts.push(`Followers Rank #${ranks.followers}`);
+  }
+
+  const descriptionParts = [];
+
+  if (rankParts.length) {
+    descriptionParts.push(rankParts.join("  •  "));
+  }
+
+  if (profile.bio) {
+    descriptionParts.push(profile.bio);
   }
 
   const fields = [
@@ -121,10 +131,10 @@ function buildProfileEmbed(profile, ranks = null) {
 
   return {
     color: parseColor(profile.accentColor),
-    title: titleParts.join("  •  "),
+    title: profile.name,
     url: profile.profileUrl,
     description:
-      profile.bio || `Public Anime.com profile for @${profile.username}.`,
+      descriptionParts.join("\n\n") || `Public Anime.com profile for @${profile.username}.`,
     fields,
     thumbnail: profile.avatarUrl ? { url: profile.avatarUrl } : undefined,
     footer: {
