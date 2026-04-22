@@ -751,6 +751,16 @@ client.on(Events.InteractionCreate, async (interaction) => {
     }
 
     if (interaction.commandName === "unlink") {
+      const linkedUsername = await getLinkedUsername(interaction.user.id);
+
+      if (interaction.guildId && linkedUsername) {
+        try {
+          await addTrackedUsername(interaction.guildId, linkedUsername);
+        } catch {
+          // Keep unlink working even if tracked-profile storage fails.
+        }
+      }
+
       const removed = await removeLinkedUsername(interaction.user.id);
       await removePendingLink(interaction.user.id);
       await interaction.editReply(
