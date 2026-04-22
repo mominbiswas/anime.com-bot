@@ -1,0 +1,19 @@
+{
+  "name": "animecom-discord-bot",
+  "version": "0.1.0",
+  "description": "Discord bot for fetching public Anime.com profile information.",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js",
+    "register": "node src/register-commands.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "discord.js": "^14.19.3",
+    "dotenv": "^16.4.5",
+    "sharp": "^0.34.5"
+  }
+}
