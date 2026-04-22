@@ -87,8 +87,7 @@ function buildProfileEmbed(profile) {
     profile.reviews ? { name: "Reviews", value: profile.reviews, inline: true } : null,
     profile.seriesCompleted ? { name: "Series Completed", value: profile.seriesCompleted, inline: true } : null,
     profile.seriesWatching ? { name: "Series Watching", value: profile.seriesWatching, inline: true } : null,
-    profile.avgSeriesRating ? { name: "Avg Series Rating", value: profile.avgSeriesRating, inline: true } : null,
-    profile.displayedBadges?.length ? { name: "Badges", value: "\u200b", inline: false } : null
+    profile.avgSeriesRating ? { name: "Avg Series Rating", value: profile.avgSeriesRating, inline: true } : null
   ].filter(Boolean);
 
   return {
@@ -102,6 +101,14 @@ function buildProfileEmbed(profile) {
     footer: {
       text: "Data fetched from Anime.com public GraphQL endpoint"
     }
+  };
+}
+
+function buildBadgeEmbed(profile) {
+  return {
+    color: parseColor(profile.accentColor),
+    title: "Badges",
+    image: { url: "attachment://badges.png" }
   };
 }
 
@@ -491,9 +498,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
       const badgeStrip = await renderBadgeStrip(profile.displayedBadges);
 
       if (badgeStrip) {
-        embed.image = { url: "attachment://badges.png" };
         await interaction.editReply({
-          embeds: [embed],
+          embeds: [embed, buildBadgeEmbed(profile)],
           files: [new AttachmentBuilder(badgeStrip, { name: "badges.png" })]
         });
         return;
@@ -538,9 +544,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
       const badgeStrip = await renderBadgeStrip(profile.displayedBadges);
 
       if (badgeStrip) {
-        embed.image = { url: "attachment://badges.png" };
         await interaction.editReply({
-          embeds: [embed],
+          embeds: [embed, buildBadgeEmbed(profile)],
           files: [new AttachmentBuilder(badgeStrip, { name: "badges.png" })]
         });
         return;
