@@ -2,82 +2,127 @@ import fs from "node:fs/promises";
 import path from "node:path";
 
 const DATA_DIR = path.resolve(process.cwd(), "data");
-const TRACKED_FILE = path.join(DATA_DIR, "tracked-profiles.json");
-const GLOBAL_KEY = "global";
+const SHARED_TRACKED_FILE = path.join(DATA_DIR, "shared-tracked-profiles.json");
+const LEGACY_TRACKED_FILE = path.join(DATA_DIR, "tracked-profiles.json");
 
-async function ensureStore() {
+async function ensureDataDir() {
   await fs.mkdir(DATA_DIR, { recursive: true });
+}
 
+async function fileExists(filePath) {
   try {
-    await fs.access(TRACKED_FILE);
+    await fs.access(filePath);
+    return true;
   } catch {
-    await fs.writeFile(TRACKED_FILE, "{}\n", "utf8");
+    return false;
   }
 }
 
-async function readTrackedProfiles() {
-  await ensureStore();
-  const raw = await fs.readFile(TRACKED_FILE, "utf8");
+function normalizeTrackedPayload(payload) {
+  const usernames = Array.isArray(payload?.usernames) ? payload.usernames : [];
 
-  try {
-    const parsed = JSON.parse(raw);
-    return typeof parsed === "object" && parsed ? parsed : {};
-  } catch {
-    return {};
-  }
+  return {
+    usernames: usernames.filter((value, index, array) =>
+      typeof value === "string" &&
+      value.trim() &&
+      array.findIndex((entry) => typeof entry === "string" && entry.toLowerCase() === value.toLowerCase()) === index
+    )
+  };
 }
 
-async function writeTrackedProfiles(trackedProfiles) {
-  await ensureStore();
-  await fs.writeFile(TRACKED_FILE, `${JSON.stringify(trackedProfiles, null, 2)}\n`, "utf8");
-}
-
-export async function getTrackedUsernames(guildId) {
-  const trackedProfiles = await readTrackedProfiles();
-  const globalUsernames = trackedProfiles[GLOBAL_KEY];
-
-  if (Array.isArray(globalUsernames)) {
-    return globalUsernames;
+function collectLegacyUsernames(payload) {
+  if (!payload || typeof payload !== "object") {
+    return [];
   }
 
-  const flattened = Object.values(trackedProfiles)
+  return Object.values(payload)
     .flatMap((value) => (Array.isArray(value) ? value : []))
     .filter((value, index, array) =>
-      typeof value === "string" && array.findIndex((entry) => entry.toLowerCase() === value.toLowerCase()) === index
+      typeof value === "string" &&
+      value.trim() &&
+      array.findIndex((entry) => typeof entry === "string" && entry.toLowerCase() === value.toLowerCase()) === index
     );
-
-  if (flattened.length) {
-    trackedProfiles[GLOBAL_KEY] = flattened;
-    await writeTrackedProfiles(trackedProfiles);
-  }
-
-  return flattened;
 }
 
-export async function addTrackedUsername(guildId, username) {
-  const trackedProfiles = await readTrackedProfiles();
-  const existing = await getTrackedUsernames(guildId);
-  const alreadyTracked = existing.some((entry) => entry.toLowerCase() === username.toLowerCase());
+async function writeSharedTrackedProfiles(payload) {
+  await ensureDataDir();
+  await fs.writeFile(
+    SHARED_TRACKED_FILE,
+    `${JSON.stringify(normalizeTrackedPayload(payload), null, 2)}\n`,
+    "utf8"
+  );
+}
+
+async function migrateLegacyTrackedProfilesIfNeeded() {
+  const hasSharedFile = await fileExists(SHARED_TRACKED_FILE);
+
+  if (hasSharedFile) {
+    return;
+  }
+
+  const hasLegacyFile = await fileExists(LEGACY_TRACKED_FILE);
+
+  if (!hasLegacyFile) {
+    await writeSharedTrackedProfiles({ usernames: [] });
+    return;
+  }
+
+  const rawLegacy = await fs.readFile(LEGACY_TRACKED_FILE, "utf8");
+  let parsedLegacy;
+
+  try {
+    parsedLegacy = JSON.parse(rawLegacy);
+  } catch {
+    parsedLegacy = {};
+  }
+
+  await writeSharedTrackedProfiles({
+    usernames: collectLegacyUsernames(parsedLegacy)
+  });
+}
+
+async function readSharedTrackedProfiles() {
+  await ensureDataDir();
+  await migrateLegacyTrackedProfilesIfNeeded();
+  const raw = await fs.readFile(SHARED_TRACKED_FILE, "utf8");
+
+  try {
+    return normalizeTrackedPayload(JSON.parse(raw));
+  } catch {
+    return { usernames: [] };
+  }
+}
+
+export async function getTrackedUsernames() {
+  const trackedProfiles = await readSharedTrackedProfiles();
+  return trackedProfiles.usernames;
+}
+
+export async function addTrackedUsername(_scope, username) {
+  const trackedProfiles = await readSharedTrackedProfiles();
+  const alreadyTracked = trackedProfiles.usernames.some(
+    (entry) => entry.toLowerCase() === username.toLowerCase()
+  );
 
   if (alreadyTracked) {
     return false;
   }
 
-  trackedProfiles[GLOBAL_KEY] = [...existing, username];
-  await writeTrackedProfiles(trackedProfiles);
+  trackedProfiles.usernames.push(username);
+  await writeSharedTrackedProfiles(trackedProfiles);
   return true;
 }
 
-export async function removeTrackedUsername(guildId, username) {
-  const trackedProfiles = await readTrackedProfiles();
-  const existing = await getTrackedUsernames(guildId);
-  const filtered = existing.filter((entry) => entry.toLowerCase() !== username.toLowerCase());
+export async function removeTrackedUsername(_scope, username) {
+  const trackedProfiles = await readSharedTrackedProfiles();
+  const filtered = trackedProfiles.usernames.filter(
+    (entry) => entry.toLowerCase() !== username.toLowerCase()
+  );
 
-  if (filtered.length === existing.length) {
+  if (filtered.length === trackedProfiles.usernames.length) {
     return false;
   }
 
-  trackedProfiles[GLOBAL_KEY] = filtered;
-  await writeTrackedProfiles(trackedProfiles);
+  await writeSharedTrackedProfiles({ usernames: filtered });
   return true;
 }
