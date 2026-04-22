@@ -6,11 +6,11 @@ const PADDING_X = 6;
 const PADDING_Y = 6;
 const ICON_SIZE = 25;
 const MAX_PER_ROW = 8;
-const LABEL_HEIGHT = 20;
+const LABEL_HEIGHT = 16;
 const LABEL_GAP = 4;
 const LABEL_COLOR = "#ffffff";
-const LETTER_SCALE = 1.15;
-const LETTER_SPACING = 4;
+const LETTER_SCALE = 0.9;
+const LETTER_SPACING = 3;
 const BADGES_PATHS = [
   { width: 12, d: "M1 1 L1 15 M1 1 L7 1 Q11 1 11 4 Q11 7 7 7 L1 7 M1 7 L7 7 Q11 7 11 11 Q11 15 7 15 L1 15" },
   { width: 12, d: "M1 15 L5 1 L9 15 M2.5 10 L7.5 10" },
@@ -26,7 +26,7 @@ function buildLabelSvg(width) {
 
   for (const letter of BADGES_PATHS) {
     paths.push(
-      `<path d="${letter.d}" transform="translate(${x} 1) scale(${LETTER_SCALE})" fill="none" stroke="${LABEL_COLOR}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />`
+      `<path d="${letter.d}" transform="translate(${x} 1) scale(${LETTER_SCALE})" fill="none" stroke="${LABEL_COLOR}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />`
     );
     x += letter.width * LETTER_SCALE + LETTER_SPACING;
   }
