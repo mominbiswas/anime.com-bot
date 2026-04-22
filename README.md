@@ -42,6 +42,8 @@ npm install
 DISCORD_TOKEN=your_bot_token_here
 DISCORD_CLIENT_ID=your_application_client_id_here
 DISCORD_GUILD_ID=optional_test_server_id_here
+DISCORD_GUILD_IDS=optional_comma_separated_test_server_ids
+DATA_DIR=optional_persistent_data_directory
 ```
 
 4. Register the slash command:
@@ -51,6 +53,7 @@ npm run register
 ```
 
 If `DISCORD_GUILD_ID` is set, the command is registered to that server immediately for testing. If it is omitted, the command is registered globally and can take a bit longer to appear.
+If `DISCORD_GUILD_IDS` is set, commands are registered to each of those guilds.
 
 5. Start the bot:
 
@@ -72,3 +75,4 @@ In Discord:
 
 - The bot currently uses the `GetPublicUserProfile` query against `https://www.anime.com/api/graphql`.
 - If Anime.com changes that query or starts blocking bot-like traffic, we may need to add retries, caching, or a browser-based fallback.
+- For Railway or other hosts, set `DATA_DIR` to a persistent mounted folder if you want tracked profiles and linked accounts to survive redeploys and restarts.

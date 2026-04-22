@@ -1,7 +1,8 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { getDataDir } from "./dataDir.js";
 
-const DATA_DIR = path.resolve(process.cwd(), "data");
+const DATA_DIR = getDataDir();
 const LINKS_FILE = path.join(DATA_DIR, "profile-links.json");
 
 async function ensureStore() {
