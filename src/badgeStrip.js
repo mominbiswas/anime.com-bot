@@ -9,90 +9,31 @@ const MAX_PER_ROW = 8;
 const LABEL_HEIGHT = 20;
 const LABEL_GAP = 4;
 const LABEL_COLOR = "#ffffff";
-const PIXEL_SIZE = 2;
-const LETTER_SPACING = 2;
-const BADGES_GLYPHS = {
-  B: [
-    "11110",
-    "10001",
-    "10001",
-    "11110",
-    "10001",
-    "10001",
-    "11110"
-  ],
-  A: [
-    "01110",
-    "10001",
-    "10001",
-    "11111",
-    "10001",
-    "10001",
-    "10001"
-  ],
-  D: [
-    "11110",
-    "10001",
-    "10001",
-    "10001",
-    "10001",
-    "10001",
-    "11110"
-  ],
-  G: [
-    "01111",
-    "10000",
-    "10000",
-    "10111",
-    "10001",
-    "10001",
-    "01110"
-  ],
-  E: [
-    "11111",
-    "10000",
-    "10000",
-    "11110",
-    "10000",
-    "10000",
-    "11111"
-  ],
-  S: [
-    "01111",
-    "10000",
-    "10000",
-    "01110",
-    "00001",
-    "00001",
-    "11110"
-  ]
-};
+const LETTER_SCALE = 1.15;
+const LETTER_SPACING = 4;
+const BADGES_PATHS = [
+  { width: 12, d: "M1 1 L1 15 M1 1 L7 1 Q11 1 11 4 Q11 7 7 7 L1 7 M1 7 L7 7 Q11 7 11 11 Q11 15 7 15 L1 15" },
+  { width: 12, d: "M1 15 L5 1 L9 15 M2.5 10 L7.5 10" },
+  { width: 12, d: "M1 1 L1 15 M1 1 L6 1 Q11 1 11 8 Q11 15 6 15 L1 15" },
+  { width: 12, d: "M11 4 Q10 1 6 1 Q1 1 1 8 Q1 15 6 15 Q10 15 11 11 M11 11 L7 11" },
+  { width: 11, d: "M10 1 L1 1 L1 15 L10 15 M1 8 L8 8" },
+  { width: 11, d: "M10 3 Q9 1 5 1 Q1 1 1 5 Q1 8 5 8 Q10 8 10 11 Q10 15 5 15 Q1 15 1 13" }
+];
 
 function buildLabelSvg(width) {
   let x = PADDING_X;
-  const rects = [];
+  const paths = [];
 
-  for (const character of "BADGES") {
-    const glyph = BADGES_GLYPHS[character];
-
-    for (let row = 0; row < glyph.length; row += 1) {
-      for (let column = 0; column < glyph[row].length; column += 1) {
-        if (glyph[row][column] !== "1") {
-          continue;
-        }
-
-        rects.push(
-          `<rect x="${x + column * PIXEL_SIZE}" y="${3 + row * PIXEL_SIZE}" width="${PIXEL_SIZE}" height="${PIXEL_SIZE}" fill="${LABEL_COLOR}" />`
-        );
-      }
-    }
-
-    x += glyph[0].length * PIXEL_SIZE + LETTER_SPACING;
+  for (const letter of BADGES_PATHS) {
+    paths.push(
+      `<path d="${letter.d}" transform="translate(${x} 1) scale(${LETTER_SCALE})" fill="none" stroke="${LABEL_COLOR}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />`
+    );
+    x += letter.width * LETTER_SCALE + LETTER_SPACING;
   }
 
   return Buffer.from(`
     <svg width="${width}" height="${LABEL_HEIGHT}" xmlns="http://www.w3.org/2000/svg">
-      ${rects.join("")}
+      ${paths.join("")}
     </svg>
   `);
 }
