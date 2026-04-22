@@ -19,7 +19,9 @@ import { renderBadgeStrip } from "./badgeStrip.js";
 import {
   getPendingLink,
   getAllLinkedProfiles,
+  getAllUnlinkedUsernames,
   getLinkedUsername,
+  markUsernameUnlinked,
   removePendingLink,
   removeLinkedUsername,
   setPendingLink,
@@ -406,10 +408,15 @@ function buildLeaderboardComponents(metric, rows, page, perPage, guildId) {
 
 async function fetchLeaderboardRows(metric, guildId) {
   const linkedProfiles = await getAllLinkedProfiles();
+  const unlinkedUsernames = new Set(await getAllUnlinkedUsernames());
   const trackedUsernames = guildId ? await getTrackedUsernames(guildId) : [];
   const mergedProfiles = new Map();
 
   for (const { discordUserId, username } of linkedProfiles) {
+    if (unlinkedUsernames.has(username.toLowerCase())) {
+      continue;
+    }
+
     mergedProfiles.set(username.toLowerCase(), {
       discordUserId,
       username
@@ -418,6 +425,11 @@ async function fetchLeaderboardRows(metric, guildId) {
 
   for (const username of trackedUsernames) {
     const key = username.toLowerCase();
+
+    if (unlinkedUsernames.has(key)) {
+      continue;
+    }
+
     const existing = mergedProfiles.get(key);
     mergedProfiles.set(key, {
       discordUserId: existing?.discordUserId ?? null,
@@ -751,7 +763,13 @@ client.on(Events.InteractionCreate, async (interaction) => {
     }
 
     if (interaction.commandName === "unlink") {
+      const linkedUsername = await getLinkedUsername(interaction.user.id);
       const removed = await removeLinkedUsername(interaction.user.id);
+
+      if (linkedUsername) {
+        await markUsernameUnlinked(interaction.user.id, linkedUsername);
+      }
+
       await removePendingLink(interaction.user.id);
       await interaction.editReply(
         removed
@@ -904,7 +922,11 @@ client.on(Events.InteractionCreate, async (interaction) => {
     if (interaction.commandName === "profile") {
       if (interaction.guildId) {
         try {
-          await addTrackedUsername(interaction.guildId, profile.username);
+          const unlinkedUsernames = new Set(await getAllUnlinkedUsernames());
+
+          if (!unlinkedUsernames.has(profile.username.toLowerCase())) {
+            await addTrackedUsername(interaction.guildId, profile.username);
+          }
         } catch {
           // Silent on purpose: profile lookup should still work even if tracking storage fails.
         }

@@ -40,16 +40,25 @@ export async function getAllLinkedProfiles() {
   const links = await readLinks();
 
   return Object.entries(links)
-    .filter(([key, value]) => !key.startsWith("pending:") && typeof value === "string" && value)
+    .filter(([key, value]) => !key.startsWith("pending:") && !key.startsWith("unlinked:") && typeof value === "string" && value)
     .map(([discordUserId, username]) => ({
       discordUserId,
       username
     }));
 }
 
+export async function getAllUnlinkedUsernames() {
+  const links = await readLinks();
+
+  return Object.entries(links)
+    .filter(([key, value]) => key.startsWith("unlinked:") && typeof value === "string" && value)
+    .map(([, username]) => username.toLowerCase());
+}
+
 export async function setLinkedUsername(discordUserId, username) {
   const links = await readLinks();
   links[discordUserId] = username;
+  delete links[`unlinked:${discordUserId}`];
   await writeLinks(links);
 }
 
@@ -59,6 +68,12 @@ export async function removeLinkedUsername(discordUserId) {
   delete links[discordUserId];
   await writeLinks(links);
   return hadValue;
+}
+
+export async function markUsernameUnlinked(discordUserId, username) {
+  const links = await readLinks();
+  links[`unlinked:${discordUserId}`] = username;
+  await writeLinks(links);
 }
 
 export async function getPendingLink(discordUserId) {
