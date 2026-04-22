@@ -406,7 +406,7 @@ function buildLeaderboardComponents(metric, rows, page, perPage, guildId) {
 
 async function fetchLeaderboardRows(metric, guildId) {
   const linkedProfiles = await getAllLinkedProfiles();
-  const trackedUsernames = guildId ? await getTrackedUsernames(guildId) : [];
+  const trackedUsernames = await getTrackedUsernames();
   const mergedProfiles = new Map();
 
   for (const { discordUserId, username } of linkedProfiles) {
