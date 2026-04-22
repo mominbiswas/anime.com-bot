@@ -3,7 +3,7 @@ import { renderBadgeIcon } from "./badgeIcons.js";
 
 const GAP = 4;
 const PADDING_X = 6;
-const PADDING_Y = 4;
+const PADDING_Y = 0;
 const ICON_SIZE = 25;
 const MAX_PER_ROW = 8;
 
