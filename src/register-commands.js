@@ -4,6 +4,17 @@ import { PermissionFlagsBits, REST, Routes, SlashCommandBuilder } from "discord.
 const token = process.env.DISCORD_TOKEN;
 const clientId = process.env.DISCORD_CLIENT_ID;
 const guildId = process.env.DISCORD_GUILD_ID;
+const guildIds = [
+  ...new Set(
+    [
+      ...(process.env.DISCORD_GUILD_IDS ?? "")
+        .split(",")
+        .map((value) => value.trim())
+        .filter(Boolean),
+      ...(guildId ? [guildId] : [])
+    ]
+  )
+];
 
 if (!token || !clientId) {
   throw new Error("Missing DISCORD_TOKEN or DISCORD_CLIENT_ID in environment.");
@@ -137,19 +148,25 @@ const commands = [
 const rest = new REST({ version: "10" }).setToken(token);
 
 try {
-  const route = guildId
-    ? Routes.applicationGuildCommands(clientId, guildId)
-    : Routes.applicationCommands(clientId);
+  if (guildIds.length) {
+    for (const currentGuildId of guildIds) {
+      const route = Routes.applicationGuildCommands(clientId, currentGuildId);
 
-  await rest.put(route, {
-    body: commands
-  });
+      await rest.put(route, {
+        body: commands
+      });
 
-  console.log(
-    guildId
-      ? `Successfully registered slash commands for guild ${guildId}.`
-      : "Successfully registered global slash commands."
-  );
+      console.log(`Successfully registered slash commands for guild ${currentGuildId}.`);
+    }
+  } else {
+    const route = Routes.applicationCommands(clientId);
+
+    await rest.put(route, {
+      body: commands
+    });
+
+    console.log("Successfully registered global slash commands.");
+  }
 } catch (error) {
   console.error("Failed to register slash commands:", error);
   process.exitCode = 1;
