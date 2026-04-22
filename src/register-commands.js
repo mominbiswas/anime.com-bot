@@ -26,7 +26,7 @@ const commands = [
     .toJSON(),
   new SlashCommandBuilder()
     .setName("leaderboard")
-    .setDescription("Rank linked and tracked users by an Anime.com stat.")
+    .setDescription("Rank linked and tracked Anime.com users by a stat.")
     .addStringOption((option) =>
       option
         .setName("metric")
@@ -47,7 +47,7 @@ const commands = [
     .toJSON(),
   new SlashCommandBuilder()
     .setName("track")
-    .setDescription("Track an Anime.com username for this server's leaderboard.")
+    .setDescription("Track an Anime.com username for the bot's shared leaderboard.")
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
     .addStringOption((option) =>
       option
@@ -58,7 +58,7 @@ const commands = [
     .toJSON(),
   new SlashCommandBuilder()
     .setName("untrack")
-    .setDescription("Remove a tracked Anime.com username from this server.")
+    .setDescription("Remove a tracked Anime.com username from the shared leaderboard.")
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
     .addStringOption((option) =>
       option

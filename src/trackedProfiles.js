@@ -3,6 +3,7 @@ import path from "node:path";
 
 const DATA_DIR = path.resolve(process.cwd(), "data");
 const TRACKED_FILE = path.join(DATA_DIR, "tracked-profiles.json");
+const GLOBAL_KEY = "global";
 
 async function ensureStore() {
   await fs.mkdir(DATA_DIR, { recursive: true });
@@ -33,34 +34,50 @@ async function writeTrackedProfiles(trackedProfiles) {
 
 export async function getTrackedUsernames(guildId) {
   const trackedProfiles = await readTrackedProfiles();
-  const usernames = trackedProfiles[guildId];
-  return Array.isArray(usernames) ? usernames : [];
+  const globalUsernames = trackedProfiles[GLOBAL_KEY];
+
+  if (Array.isArray(globalUsernames)) {
+    return globalUsernames;
+  }
+
+  const flattened = Object.values(trackedProfiles)
+    .flatMap((value) => (Array.isArray(value) ? value : []))
+    .filter((value, index, array) =>
+      typeof value === "string" && array.findIndex((entry) => entry.toLowerCase() === value.toLowerCase()) === index
+    );
+
+  if (flattened.length) {
+    trackedProfiles[GLOBAL_KEY] = flattened;
+    await writeTrackedProfiles(trackedProfiles);
+  }
+
+  return flattened;
 }
 
 export async function addTrackedUsername(guildId, username) {
   const trackedProfiles = await readTrackedProfiles();
-  const existing = Array.isArray(trackedProfiles[guildId]) ? trackedProfiles[guildId] : [];
+  const existing = await getTrackedUsernames(guildId);
   const alreadyTracked = existing.some((entry) => entry.toLowerCase() === username.toLowerCase());
 
   if (alreadyTracked) {
     return false;
   }
 
-  trackedProfiles[guildId] = [...existing, username];
+  trackedProfiles[GLOBAL_KEY] = [...existing, username];
   await writeTrackedProfiles(trackedProfiles);
   return true;
 }
 
 export async function removeTrackedUsername(guildId, username) {
   const trackedProfiles = await readTrackedProfiles();
-  const existing = Array.isArray(trackedProfiles[guildId]) ? trackedProfiles[guildId] : [];
+  const existing = await getTrackedUsernames(guildId);
   const filtered = existing.filter((entry) => entry.toLowerCase() !== username.toLowerCase());
 
   if (filtered.length === existing.length) {
     return false;
   }
 
-  trackedProfiles[guildId] = filtered;
+  trackedProfiles[GLOBAL_KEY] = filtered;
   await writeTrackedProfiles(trackedProfiles);
   return true;
 }

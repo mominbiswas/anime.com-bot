@@ -827,8 +827,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
       await interaction.editReply(
         added
-          ? `Now tracking \`@${profile.username}\` for this server's leaderboard. They will appear in \`/leaderboard\` even without linking.`
-          : `\`@${profile.username}\` is already being tracked for this server.`
+          ? `Now tracking \`@${profile.username}\` for the shared leaderboard. They will appear in \`/leaderboard\` across every server using this bot, even without linking.`
+          : `\`@${profile.username}\` is already being tracked for the shared leaderboard.`
       );
       return;
     }
@@ -849,8 +849,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
       await interaction.editReply(
         removed
-          ? `Stopped tracking \`@${username}\` for this server.`
-          : `\`@${username}\` is not currently tracked for this server.`
+          ? `Stopped tracking \`@${username}\` from the shared leaderboard.`
+          : `\`@${username}\` is not currently tracked in the shared leaderboard.`
       );
       return;
     }
