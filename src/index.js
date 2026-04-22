@@ -90,7 +90,11 @@ async function buildBadgeAttachments(badges, prefix) {
   return files;
 }
 
-function buildProfileEmbed(profile) {
+function formatRank(rank) {
+  return rank ? `#${rank}` : "Unranked";
+}
+
+function buildProfileEmbed(profile, ranks = null) {
   const fields = [
     profile.aura ? { name: "Aura", value: profile.aura, inline: true } : null,
     profile.joinDate ? { name: "Joined", value: profile.joinDate, inline: true } : null,
@@ -102,7 +106,9 @@ function buildProfileEmbed(profile) {
     profile.reviews ? { name: "Reviews", value: profile.reviews, inline: true } : null,
     profile.seriesCompleted ? { name: "Series Completed", value: profile.seriesCompleted, inline: true } : null,
     profile.seriesWatching ? { name: "Series Watching", value: profile.seriesWatching, inline: true } : null,
-    profile.avgSeriesRating ? { name: "Avg Series Rating", value: profile.avgSeriesRating, inline: true } : null
+    profile.avgSeriesRating ? { name: "Avg Series Rating", value: profile.avgSeriesRating, inline: true } : null,
+    ranks ? { name: "Aura Rank", value: formatRank(ranks.aura), inline: true } : null,
+    ranks ? { name: "Followers Rank", value: formatRank(ranks.followers), inline: true } : null
   ].filter(Boolean);
 
   return {
@@ -420,6 +426,22 @@ function buildLeaderboardComponents(metric, rows, page, perPage, guildId) {
 }
 
 async function fetchLeaderboardRows(metric, guildId) {
+  const leaderboardProfiles = await fetchLeaderboardProfiles(guildId);
+
+  return {
+    totalUsers: leaderboardProfiles.totalUsers,
+    rows: leaderboardProfiles.rows
+      .filter((row) => row[metric] != null)
+      .map((row) => ({
+        discordUserId: row.discordUserId,
+        username: row.username,
+        value: row[metric]
+      }))
+      .sort((left, right) => right.value - left.value)
+  };
+}
+
+async function fetchLeaderboardProfiles(guildId) {
   const linkedProfiles = await getAllLinkedProfiles();
   const forcedUnlinkedUsernames = new Set(await getAllForcedUnlinkedUsernames());
   const trackedUsernames = await getTrackedUsernames();
@@ -460,16 +482,11 @@ async function fetchLeaderboardRows(metric, guildId) {
         return null;
       }
 
-      const value = parseMetricValue(profile, metric);
-
-      if (value == null) {
-        return null;
-      }
-
       return {
         discordUserId,
         username: profile.username,
-        value
+        aura: parseMetricValue(profile, "aura"),
+        followers: parseMetricValue(profile, "followers")
       };
     })
   );
@@ -479,7 +496,26 @@ async function fetchLeaderboardRows(metric, guildId) {
     rows: fetchedProfiles
       .filter((result) => result.status === "fulfilled" && result.value)
       .map((result) => result.value)
-      .sort((left, right) => right.value - left.value)
+  };
+}
+
+async function fetchProfileRanks(username, guildId) {
+  const leaderboardProfiles = await fetchLeaderboardProfiles(guildId);
+  const targetUsername = username.toLowerCase();
+
+  const auraRows = leaderboardProfiles.rows
+    .filter((row) => row.aura != null)
+    .sort((left, right) => right.aura - left.aura);
+  const followersRows = leaderboardProfiles.rows
+    .filter((row) => row.followers != null)
+    .sort((left, right) => right.followers - left.followers);
+
+  const auraRankIndex = auraRows.findIndex((row) => row.username.toLowerCase() === targetUsername);
+  const followersRankIndex = followersRows.findIndex((row) => row.username.toLowerCase() === targetUsername);
+
+  return {
+    aura: auraRankIndex >= 0 ? auraRankIndex + 1 : null,
+    followers: followersRankIndex >= 0 ? followersRankIndex + 1 : null
   };
 }
 
@@ -812,7 +848,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
         return;
       }
 
-      const embed = buildProfileEmbed(profile);
+      const ranks = await fetchProfileRanks(profile.username, interaction.guildId);
+      const embed = buildProfileEmbed(profile, ranks);
       const badgeStrip = await renderBadgeStrip(profile.displayedBadges);
 
       if (badgeStrip) {
@@ -946,7 +983,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
         }
       }
 
-      const embed = buildProfileEmbed(profile);
+      const ranks = await fetchProfileRanks(profile.username, interaction.guildId);
+      const embed = buildProfileEmbed(profile, ranks);
       const badgeStrip = await renderBadgeStrip(profile.displayedBadges);
 
       if (badgeStrip) {
