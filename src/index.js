@@ -902,6 +902,14 @@ client.on(Events.InteractionCreate, async (interaction) => {
     }
 
     if (interaction.commandName === "profile") {
+      if (interaction.guildId) {
+        try {
+          await addTrackedUsername(interaction.guildId, profile.username);
+        } catch {
+          // Silent on purpose: profile lookup should still work even if tracking storage fails.
+        }
+      }
+
       const embed = buildProfileEmbed(profile);
       const badgeStrip = await renderBadgeStrip(profile.displayedBadges);
 
