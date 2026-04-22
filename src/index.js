@@ -34,6 +34,12 @@ import {
 } from "./trackedProfiles.js";
 
 const token = process.env.DISCORD_TOKEN;
+const allowedUntrackUserIds = new Set(
+  (process.env.UNTRACK_ALLOWED_USER_IDS ?? "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean)
+);
 
 if (!token) {
   throw new Error("Missing DISCORD_TOKEN in environment.");
@@ -342,6 +348,13 @@ function formatMetricLabel(metric) {
     aura: "Aura",
     followers: "Followers"
   }[metric] ?? metric;
+}
+
+function canUseUntrack(interaction) {
+  return Boolean(
+    interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild) ||
+    allowedUntrackUserIds.has(interaction.user.id)
+  );
 }
 
 function buildLeaderboardEmbed(metric, rows, totalUsers, page, perPage) {
@@ -850,8 +863,10 @@ client.on(Events.InteractionCreate, async (interaction) => {
         return;
       }
 
-      if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
-        await interaction.editReply("You need the `Manage Server` permission to remove tracked Anime.com profiles here.");
+      if (!canUseUntrack(interaction)) {
+        await interaction.editReply(
+          "You are not allowed to use `/untrack`. Ask a server admin, or add your Discord user ID to `UNTRACK_ALLOWED_USER_IDS`."
+        );
         return;
       }
 

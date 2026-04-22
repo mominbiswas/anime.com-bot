@@ -70,7 +70,6 @@ const commands = [
   new SlashCommandBuilder()
     .setName("untrack")
     .setDescription("Remove a tracked Anime.com username from the shared leaderboard.")
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
     .addStringOption((option) =>
       option
         .setName("username")
