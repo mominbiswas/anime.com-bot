@@ -15,7 +15,7 @@ import {
 } from "discord.js";
 import { fetchAnimeListInfo, fetchAnimeProfile } from "./animeProfile.js";
 import { renderBadgeIcon } from "./badgeIcons.js";
-import { renderBadgeStrip } from "./badgeStrip.js";
+import { renderProfileCard } from "./profileCard.js";
 import {
   getAllForcedUnlinkedUsernames,
   getPendingLink,
@@ -115,28 +115,12 @@ function buildProfileEmbed(profile, ranks = null) {
     descriptionParts.push(profile.bio);
   }
 
-  const fields = [
-    profile.aura ? { name: "Aura", value: profile.aura, inline: true } : null,
-    profile.joinDate ? { name: "Joined", value: profile.joinDate, inline: true } : null,
-    profile.lastUpdated ? { name: "Updated", value: profile.lastUpdated, inline: true } : null,
-    profile.followers ? { name: "Followers", value: profile.followers, inline: true } : null,
-    profile.following ? { name: "Following", value: profile.following, inline: true } : null,
-    profile.comments ? { name: "Comments", value: profile.comments, inline: true } : null,
-    profile.lists ? { name: "Lists", value: profile.lists, inline: true } : null,
-    profile.reviews ? { name: "Reviews", value: profile.reviews, inline: true } : null,
-    profile.avgSeriesRating ? { name: "Avg Rating", value: profile.avgSeriesRating, inline: true } : null,
-    profile.seriesWatching ? { name: "Watching", value: profile.seriesWatching, inline: true } : null,
-    profile.seriesPlanning ? { name: "Planning", value: profile.seriesPlanning, inline: true } : null,
-    profile.seriesCompleted ? { name: "Completed", value: profile.seriesCompleted, inline: true } : null,
-  ].filter(Boolean);
-
   return {
     color: parseColor(profile.accentColor),
     title: profile.name,
     url: profile.profileUrl,
     description:
       descriptionParts.join("\n\n") || `Public Anime.com profile for @${profile.username}.`,
-    fields,
     thumbnail: profile.avatarUrl ? { url: profile.avatarUrl } : undefined,
     footer: {
       text: "Data fetched from Anime.com public GraphQL endpoint"
@@ -869,18 +853,12 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
       const ranks = await fetchProfileRanks(profile.username, interaction.guildId);
       const embed = buildProfileEmbed(profile, ranks);
-      const badgeStrip = await renderBadgeStrip(profile.displayedBadges);
-
-      if (badgeStrip) {
-        embed.image = { url: "attachment://badges.png" };
-        await interaction.editReply({
-          embeds: [embed],
-          files: [new AttachmentBuilder(badgeStrip, { name: "badges.png" })]
-        });
-        return;
-      }
-
-      await interaction.editReply({ embeds: [embed] });
+      const profileCard = await renderProfileCard(profile, ranks);
+      embed.image = { url: "attachment://profile-card.png" };
+      await interaction.editReply({
+        embeds: [embed],
+        files: [new AttachmentBuilder(profileCard, { name: "profile-card.png" })]
+      });
       return;
     }
 
@@ -1004,18 +982,12 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
       const ranks = await fetchProfileRanks(profile.username, interaction.guildId);
       const embed = buildProfileEmbed(profile, ranks);
-      const badgeStrip = await renderBadgeStrip(profile.displayedBadges);
-
-      if (badgeStrip) {
-        embed.image = { url: "attachment://badges.png" };
-        await interaction.editReply({
-          embeds: [embed],
-          files: [new AttachmentBuilder(badgeStrip, { name: "badges.png" })]
-        });
-        return;
-      }
-
-      await interaction.editReply({ embeds: [embed] });
+      const profileCard = await renderProfileCard(profile, ranks);
+      embed.image = { url: "attachment://profile-card.png" };
+      await interaction.editReply({
+        embeds: [embed],
+        files: [new AttachmentBuilder(profileCard, { name: "profile-card.png" })]
+      });
       return;
     }
 
