@@ -6,34 +6,28 @@ const PADDING_X = 6;
 const PADDING_Y = 6;
 const ICON_SIZE = 25;
 const MAX_PER_ROW = 8;
-const LABEL_HEIGHT = 16;
+const LABEL_HEIGHT = 18;
 const LABEL_GAP = 4;
 const LABEL_COLOR = "#ffffff";
-const LETTER_SCALE = 0.9;
-const LETTER_SPACING = 3;
-const BADGES_PATHS = [
-  { width: 12, d: "M1 1 L1 15 M1 1 L7 1 Q11 1 11 4 Q11 7 7 7 L1 7 M1 7 L7 7 Q11 7 11 11 Q11 15 7 15 L1 15" },
-  { width: 12, d: "M1 15 L5 1 L9 15 M2.5 10 L7.5 10" },
-  { width: 12, d: "M1 1 L1 15 M1 1 L6 1 Q11 1 11 8 Q11 15 6 15 L1 15" },
-  { width: 12, d: "M11 4 Q10 1 6 1 Q1 1 1 8 Q1 15 6 15 Q10 15 11 11 M11 11 L7 11" },
-  { width: 11, d: "M10 1 L1 1 L1 15 L10 15 M1 8 L8 8" },
-  { width: 11, d: "M10 3 Q9 1 5 1 Q1 1 1 5 Q1 8 5 8 Q10 8 10 11 Q10 15 5 15 Q1 15 1 13" }
-];
+const LABEL_SCALE = 0.82;
+const BADGES_WORDMARK_WIDTH = 72;
+const BADGES_WORDMARK = `
+  <g fill="${LABEL_COLOR}">
+    <path d="M1 1h7.6c3.2 0 5.3 1.7 5.3 4.3 0 1.8-.9 3.1-2.5 3.7 2 .5 3.2 2 3.2 4.2 0 3.1-2.3 5-6.1 5H1V1zm4 3.1v3.6h3.2c1.2 0 1.9-.7 1.9-1.8s-.7-1.8-1.9-1.8H5zm0 6.6v4h3.9c1.4 0 2.2-.8 2.2-2s-.8-2-2.2-2H5z"/>
+    <path d="M23.7 18.6c-3.2 0-5.3-2.1-5.3-5.3s2.2-5.4 5.2-5.4c2.8 0 4.8 1.9 4.8 4.7 0 .5 0 .9-.1 1.2h-6c.2 1.3 1.1 2 2.4 2 1 0 1.8-.4 2.7-1.2l2 2c-1.2 1.3-3 2-5.7 2zm-1.3-6.8h2.4c-.1-1-.7-1.7-1.6-1.7-.8 0-1.5.6-1.7 1.7z"/>
+    <path d="M38.2 18.2v-1.1c-.7.9-1.7 1.4-3.1 1.4-2.8 0-4.8-2.2-4.8-5.3 0-3 1.9-5.2 4.8-5.2 1.3 0 2.4.5 3.1 1.4V1h3.8v17.2h-3.8zm-2.1-3c1.2 0 2.1-.9 2.1-2.1s-.9-2.1-2.1-2.1-2.1.9-2.1 2.1.9 2.1 2.1 2.1z"/>
+    <path d="M49.6 22.4c-2.7 0-4.7-.8-6.1-2.2l2.1-2.4c1 1 2.2 1.5 3.7 1.5 1.8 0 2.8-.9 2.8-2.5v-.7c-.8.9-1.8 1.4-3.2 1.4-2.8 0-4.9-2-4.9-4.9S46.1 7.8 49 7.8c1.5 0 2.5.5 3.2 1.4V8h3.8v8.5c0 3.8-2.4 5.9-6.4 5.9zm.5-8.2c1.2 0 2.1-.7 2.1-1.8s-.9-1.8-2.1-1.8-2.1.7-2.1 1.8.9 1.8 2.1 1.8z"/>
+    <path d="M63.5 18.6c-3.2 0-5.3-2.1-5.3-5.3s2.2-5.4 5.2-5.4c2.8 0 4.8 1.9 4.8 4.7 0 .5 0 .9-.1 1.2h-6c.2 1.3 1.1 2 2.4 2 1 0 1.8-.4 2.7-1.2l2 2c-1.2 1.3-3 2-5.7 2zm-1.3-6.8h2.4c-.1-1-.7-1.7-1.6-1.7-.8 0-1.5.6-1.7 1.7z"/>
+    <path d="M73.9 18.5c-1.8 0-3.8-.5-5.4-1.7l1.5-2.4c1.3.9 2.8 1.4 4 1.4.7 0 1-.2 1-.5 0-.4-.5-.5-1.9-.8-2.5-.5-4.1-1.2-4.1-3.3 0-2.2 1.8-3.4 4.3-3.4 1.8 0 3.4.5 4.8 1.4l-1.4 2.5c-1.2-.7-2.5-1.1-3.5-1.1-.6 0-.9.2-.9.5 0 .4.5.5 1.8.8 2.7.5 4.2 1.4 4.2 3.4 0 2.3-1.8 3.3-4.4 3.3z"/>
+  </g>
+`;
 
 function buildLabelSvg(width) {
-  let x = PADDING_X;
-  const paths = [];
-
-  for (const letter of BADGES_PATHS) {
-    paths.push(
-      `<path d="${letter.d}" transform="translate(${x} 1) scale(${LETTER_SCALE})" fill="none" stroke="${LABEL_COLOR}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />`
-    );
-    x += letter.width * LETTER_SCALE + LETTER_SPACING;
-  }
-
   return Buffer.from(`
     <svg width="${width}" height="${LABEL_HEIGHT}" xmlns="http://www.w3.org/2000/svg">
-      ${paths.join("")}
+      <g transform="translate(${PADDING_X} 1) scale(${LABEL_SCALE})">
+        ${BADGES_WORDMARK}
+      </g>
     </svg>
   `);
 }
