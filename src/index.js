@@ -405,6 +405,15 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
   try {
     if (interaction.commandName === "link") {
+      const existingLinkedUsername = await getLinkedUsername(interaction.user.id);
+
+      if (existingLinkedUsername) {
+        await interaction.editReply(
+          `Your Discord is already linked to Anime.com user \`@${existingLinkedUsername}\`.\nIf you want to connect a different profile, run \`/unlink\` first and then start \`/link\` again.`
+        );
+        return;
+      }
+
       const username = interaction.options.getString("username", true).trim().replace(/^@/, "");
       const profile = await fetchAnimeProfile(username);
 
