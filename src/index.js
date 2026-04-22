@@ -91,25 +91,32 @@ async function buildBadgeAttachments(badges, prefix) {
 }
 
 function formatRank(rank) {
-  return rank ? `#${rank}` : "Unranked";
+  return rank ? `Rank #${rank}` : "Unranked";
 }
 
 function buildProfileEmbed(profile, ranks = null) {
+  const auraValue = profile.aura
+    ? ranks?.aura
+      ? `${profile.aura} | ${formatRank(ranks.aura)}`
+      : profile.aura
+    : null;
+  const followersValue = profile.followers
+    ? ranks?.followers
+      ? `${profile.followers} | ${formatRank(ranks.followers)}`
+      : profile.followers
+    : null;
   const fields = [
-    profile.aura ? { name: "Aura", value: profile.aura, inline: true } : null,
+    auraValue ? { name: "Aura", value: auraValue, inline: true } : null,
     profile.joinDate ? { name: "Joined", value: profile.joinDate, inline: true } : null,
     profile.lastUpdated ? { name: "Updated", value: profile.lastUpdated, inline: true } : null,
-    profile.followers ? { name: "Followers", value: profile.followers, inline: true } : null,
+    followersValue ? { name: "Followers", value: followersValue, inline: true } : null,
     profile.following ? { name: "Following", value: profile.following, inline: true } : null,
     profile.comments ? { name: "Comments", value: profile.comments, inline: true } : null,
     profile.lists ? { name: "Lists", value: profile.lists, inline: true } : null,
     profile.reviews ? { name: "Reviews", value: profile.reviews, inline: true } : null,
     profile.seriesCompleted ? { name: "Series Completed", value: profile.seriesCompleted, inline: true } : null,
     profile.seriesWatching ? { name: "Series Watching", value: profile.seriesWatching, inline: true } : null,
-    profile.avgSeriesRating || ranks ? { name: "\u200b", value: "\u200b", inline: true } : null,
-    profile.avgSeriesRating ? { name: "Avg Series Rating", value: profile.avgSeriesRating, inline: true } : null,
-    ranks ? { name: "Followers Rank", value: formatRank(ranks.followers), inline: true } : null,
-    ranks ? { name: "Aura Rank", value: formatRank(ranks.aura), inline: true } : null,
+    profile.avgSeriesRating ? { name: "Avg Series Rating", value: profile.avgSeriesRating, inline: true } : null
   ].filter(Boolean);
 
   return {
