@@ -16,6 +16,7 @@ import {
 import { fetchAnimeListInfo, fetchAnimeProfile } from "./animeProfile.js";
 import { renderBadgeIcon } from "./badgeIcons.js";
 import { renderBadgeStrip } from "./badgeStrip.js";
+import { captureCharacterScreenshot } from "./characterScreenshot.js";
 import {
   getAllForcedUnlinkedUsernames,
   getPendingLink,
@@ -832,7 +833,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     return;
   }
 
-  if (!["profile-raw", "badgeinfo", "listinfo", "link", "verify", "unlink", "stats", "leaderboard", "track", "untrack"].includes(interaction.commandName)) {
+  if (!["profile-raw", "badgeinfo", "listinfo", "link", "verify", "unlink", "stats", "leaderboard", "track", "untrack", "character"].includes(interaction.commandName)) {
     return;
   }
 
@@ -1029,6 +1030,36 @@ client.on(Events.InteractionCreate, async (interaction) => {
       await interaction.editReply({
         embeds: [buildLeaderboardEmbed(metric, leaderboard.rows, leaderboard.totalUsers, 0, perPage)],
         components: buildLeaderboardComponents(metric, leaderboard.rows, 0, perPage, interaction.guildId)
+      });
+      return;
+    }
+
+    if (interaction.commandName === "character") {
+      const username = interaction.options.getString("username", true).trim().replace(/^@/, "");
+      const profile = await fetchAnimeProfile(username);
+
+      if (!profile) {
+        await interaction.editReply(`No public Anime.com profile was found for \`${username}\`.`);
+        return;
+      }
+
+      const screenshot = await captureCharacterScreenshot(profile.username);
+      const embed = {
+        color: parseColor(profile.accentColor),
+        title: `${profile.name} Character`,
+        url: profile.profileUrl,
+        description: `Visible Anime.com character/model capture for \`@${profile.username}\`.`,
+        image: {
+          url: "attachment://character.png"
+        },
+        footer: {
+          text: "Best-effort browser capture from the public Anime.com profile page"
+        }
+      };
+
+      await interaction.editReply({
+        embeds: [embed],
+        files: [new AttachmentBuilder(screenshot, { name: "character.png" })]
       });
       return;
     }
