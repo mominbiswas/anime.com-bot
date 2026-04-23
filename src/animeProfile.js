@@ -156,8 +156,9 @@ export function formatDate(value) {
   }
 
   return new Intl.DateTimeFormat("en-US", {
-    year: "2-digit",
-    month: "short"
+    day: "numeric",
+    month: "short",
+    year: "numeric"
   }).format(date);
 }
 
