@@ -73,6 +73,16 @@ function generateVerificationCode() {
   return `DC-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
 }
 
+function buildPaddedBio(bio, minLength = 60) {
+  const normalizedBio = (bio ?? "").trim();
+
+  if (normalizedBio.length >= minLength) {
+    return normalizedBio;
+  }
+
+  return `${normalizedBio}${"\u00A0".repeat(minLength - normalizedBio.length)}`;
+}
+
 async function buildBadgeAttachments(badges, prefix) {
   const items = badges.filter((badge) => badge.localFilePath).slice(0, 10);
   const files = [];
@@ -111,9 +121,7 @@ function buildProfileEmbed(profile, ranks = null) {
     descriptionParts.push(rankParts.join("  •  "));
   }
 
-  if (profile.bio) {
-    descriptionParts.push(profile.bio);
-  }
+  descriptionParts.push(buildPaddedBio(profile.bio));
 
   const fields = [
     profile.aura ? { name: "Aura", value: profile.aura, inline: true } : null,
