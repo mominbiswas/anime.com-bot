@@ -76,11 +76,18 @@ function generateVerificationCode() {
 function buildPaddedBio(bio, minLength = 60) {
   const normalizedBio = (bio ?? "").trim();
 
+  if (!normalizedBio) {
+    return "\u200B\n\u200B\n\u200B";
+  }
+
   if (normalizedBio.length >= minLength) {
     return normalizedBio;
   }
 
-  return `${normalizedBio}${"\u00A0".repeat(minLength - normalizedBio.length)}`;
+  const missingLength = minLength - normalizedBio.length;
+  const fillerLines = Math.max(1, Math.ceil(missingLength / 20));
+
+  return `${normalizedBio}\n${Array.from({ length: fillerLines }, () => "\u200B").join("\n")}`;
 }
 
 async function buildBadgeAttachments(badges, prefix) {
