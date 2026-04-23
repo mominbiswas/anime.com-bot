@@ -16,7 +16,7 @@ import {
 import { fetchAnimeListInfo, fetchAnimeProfile } from "./animeProfile.js";
 import { renderBadgeIcon } from "./badgeIcons.js";
 import { renderBadgeStrip } from "./badgeStrip.js";
-import { captureCharacterScreenshot } from "./characterScreenshot.js";
+import { captureCharacterGif, captureCharacterScreenshot } from "./characterScreenshot.js";
 import {
   getAllForcedUnlinkedUsernames,
   getPendingLink,
@@ -833,7 +833,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     return;
   }
 
-  if (!["profile-raw", "badgeinfo", "listinfo", "link", "verify", "unlink", "stats", "leaderboard", "track", "untrack", "character"].includes(interaction.commandName)) {
+  if (!["profile-raw", "badgeinfo", "listinfo", "link", "verify", "unlink", "stats", "leaderboard", "track", "untrack", "character", "charactergif"].includes(interaction.commandName)) {
     return;
   }
 
@@ -1060,6 +1060,36 @@ client.on(Events.InteractionCreate, async (interaction) => {
       await interaction.editReply({
         embeds: [embed],
         files: [new AttachmentBuilder(screenshot, { name: "character.png" })]
+      });
+      return;
+    }
+
+    if (interaction.commandName === "charactergif") {
+      const username = interaction.options.getString("username", true).trim().replace(/^@/, "");
+      const profile = await fetchAnimeProfile(username);
+
+      if (!profile) {
+        await interaction.editReply(`No public Anime.com profile was found for \`${username}\`.`);
+        return;
+      }
+
+      const animation = await captureCharacterGif(profile.username);
+      const embed = {
+        color: parseColor(profile.accentColor),
+        title: `${profile.name} Character GIF`,
+        url: profile.profileUrl,
+        description: `Short animated Anime.com character capture for \`@${profile.username}\`.`,
+        image: {
+          url: "attachment://character.gif"
+        },
+        footer: {
+          text: "Best-effort animated browser capture from the public Anime.com profile page"
+        }
+      };
+
+      await interaction.editReply({
+        embeds: [embed],
+        files: [new AttachmentBuilder(animation, { name: "character.gif" })]
       });
       return;
     }
