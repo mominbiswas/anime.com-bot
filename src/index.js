@@ -148,6 +148,23 @@ function buildProfileEmbed(profile, ranks = null) {
   };
 }
 
+async function replyWithProfile(interaction, profile) {
+  const ranks = await fetchProfileRanks(profile.username, interaction.guildId);
+  const embed = buildProfileEmbed(profile, ranks);
+  const badgeStrip = await renderBadgeStrip(profile.displayedBadges);
+
+  if (badgeStrip) {
+    embed.image = { url: "attachment://badges.png" };
+    await interaction.editReply({
+      embeds: [embed],
+      files: [new AttachmentBuilder(badgeStrip, { name: "badges.png" })]
+    });
+    return;
+  }
+
+  await interaction.editReply({ embeds: [embed] });
+}
+
 function buildRawPayload(profile) {
   return {
     id: profile.id,
@@ -759,7 +776,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     return;
   }
 
-  if (!["profile", "profile-raw", "badgeinfo", "listinfo", "link", "verify", "unlink", "stats", "leaderboard", "track", "untrack"].includes(interaction.commandName)) {
+  if (!["profile-raw", "badgeinfo", "listinfo", "link", "verify", "unlink", "stats", "leaderboard", "track", "untrack"].includes(interaction.commandName)) {
     return;
   }
 
@@ -825,7 +842,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
       await setLinkedUsername(interaction.user.id, profile.username);
       await removePendingLink(interaction.user.id);
-      await interaction.editReply(`Verified and linked your Discord account to Anime.com user \`@${profile.username}\`. You can now use \`/stats\`.`);
+      await interaction.editReply(`Verified and linked your Discord account to Anime.com user \`@${profile.username}\`. You can now use \`/stats\` for yourself, or \`/stats username:<user>\` for someone else.`);
       return;
     }
 
@@ -855,36 +872,36 @@ client.on(Events.InteractionCreate, async (interaction) => {
     }
 
     if (interaction.commandName === "stats") {
-      const linkedUsername = await getLinkedUsername(interaction.user.id);
+      const requestedUsername = interaction.options.getString("username")?.trim().replace(/^@/, "");
+      let username = requestedUsername;
 
-      if (!linkedUsername) {
+      if (!username) {
+        username = await getLinkedUsername(interaction.user.id);
+      }
+
+      if (!username) {
         await interaction.editReply(
-          "You do not have a linked Anime.com profile yet. Use `/link username:<your_username>` first. \nor use `/profile` command instead."
+          "You do not have a linked Anime.com profile yet. Use `/link username:<your_username>` first, or run `/stats username:<user>` to view another public profile."
         );
         return;
       }
 
-      const profile = await fetchAnimeProfile(linkedUsername);
+      const profile = await fetchAnimeProfile(username);
 
       if (!profile) {
-        await interaction.editReply(`No public Anime.com profile was found for \`${linkedUsername}\`.`);
+        await interaction.editReply(`No public Anime.com profile was found for \`${username}\`.`);
         return;
       }
 
-      const ranks = await fetchProfileRanks(profile.username, interaction.guildId);
-      const embed = buildProfileEmbed(profile, ranks);
-      const badgeStrip = await renderBadgeStrip(profile.displayedBadges);
-
-      if (badgeStrip) {
-        embed.image = { url: "attachment://badges.png" };
-        await interaction.editReply({
-          embeds: [embed],
-          files: [new AttachmentBuilder(badgeStrip, { name: "badges.png" })]
-        });
-        return;
+      if (interaction.guildId) {
+        try {
+          await addTrackedUsername(interaction.guildId, profile.username);
+        } catch {
+          // Silent on purpose: stats lookup should still work even if tracking storage fails.
+        }
       }
 
-      await interaction.editReply({ embeds: [embed] });
+      await replyWithProfile(interaction, profile);
       return;
     }
 
@@ -994,32 +1011,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
     if (!profile) {
       await interaction.editReply(`No public Anime.com profile was found for \`${username}\`.`);
-      return;
-    }
-
-    if (interaction.commandName === "profile") {
-      if (interaction.guildId) {
-        try {
-          await addTrackedUsername(interaction.guildId, profile.username);
-        } catch {
-          // Silent on purpose: profile lookup should still work even if tracking storage fails.
-        }
-      }
-
-      const ranks = await fetchProfileRanks(profile.username, interaction.guildId);
-      const embed = buildProfileEmbed(profile, ranks);
-      const badgeStrip = await renderBadgeStrip(profile.displayedBadges);
-
-      if (badgeStrip) {
-        embed.image = { url: "attachment://badges.png" };
-        await interaction.editReply({
-          embeds: [embed],
-          files: [new AttachmentBuilder(badgeStrip, { name: "badges.png" })]
-        });
-        return;
-      }
-
-      await interaction.editReply({ embeds: [embed] });
       return;
     }
 
