@@ -411,6 +411,158 @@ function formatMetricLabel(metric) {
   }[metric] ?? metric;
 }
 
+function normalizeDiscordSearchQuery(value) {
+  return value.trim().replace(/^@+/, "").toLowerCase();
+}
+
+async function getLinkedDiscordCandidates(interaction) {
+  if (!interaction.inGuild() || !interaction.guild) {
+    return [];
+  }
+
+  const linkedProfiles = await getAllLinkedProfiles();
+  const candidates = await Promise.allSettled(
+    linkedProfiles.map(async ({ discordUserId, username }) => {
+      let member = null;
+      let user = null;
+
+      try {
+        member = await interaction.guild.members.fetch(discordUserId);
+        user = member.user;
+      } catch {
+        try {
+          user = await client.users.fetch(discordUserId);
+        } catch {
+          return null;
+        }
+      }
+
+      const names = [
+        member?.displayName,
+        user?.globalName,
+        user?.username
+      ].filter(Boolean);
+
+      if (!names.length) {
+        return null;
+      }
+
+      return {
+        discordUserId,
+        username,
+        displayName: names[0],
+        searchNames: [...new Set(names.map((name) => name.toLowerCase()))]
+      };
+    })
+  );
+
+  return candidates
+    .filter((result) => result.status === "fulfilled" && result.value)
+    .map((result) => result.value);
+}
+
+function scoreLinkedDiscordCandidate(candidate, query) {
+  let bestScore = Number.POSITIVE_INFINITY;
+
+  for (const name of candidate.searchNames) {
+    if (name === query) {
+      bestScore = Math.min(bestScore, 0);
+    } else if (name.startsWith(query)) {
+      bestScore = Math.min(bestScore, 1);
+    } else if (name.includes(query)) {
+      bestScore = Math.min(bestScore, 2);
+    }
+  }
+
+  return bestScore;
+}
+
+async function findLinkedDiscordMatches(interaction, rawQuery, limit = 25) {
+  const query = normalizeDiscordSearchQuery(rawQuery);
+  const candidates = await getLinkedDiscordCandidates(interaction);
+  const matches = candidates
+    .map((candidate) => ({
+      ...candidate,
+      score: query ? scoreLinkedDiscordCandidate(candidate, query) : 1
+    }))
+    .filter((candidate) => Number.isFinite(candidate.score))
+    .sort((left, right) =>
+      left.score - right.score ||
+      left.displayName.localeCompare(right.displayName) ||
+      left.username.localeCompare(right.username)
+    );
+
+  return matches.slice(0, limit);
+}
+
+async function resolveStatsLookup(interaction) {
+  const rawValue = interaction.options.getString("username")?.trim();
+
+  if (!rawValue) {
+    const linkedUsername = await getLinkedUsername(interaction.user.id);
+
+    if (!linkedUsername) {
+      return {
+        error:
+          "You do not have a linked Anime.com profile yet. Use `/link username:<your_username>` first, or run `/stats username:<user>` to view another public profile."
+      };
+    }
+
+    return { username: linkedUsername };
+  }
+
+  if (rawValue.startsWith("discord:")) {
+    const discordUserId = rawValue.slice("discord:".length);
+    const linkedUsername = await getLinkedUsername(discordUserId);
+
+    if (!linkedUsername) {
+      return {
+        error: "That Discord user does not have a linked Anime.com profile anymore."
+      };
+    }
+
+    return { username: linkedUsername };
+  }
+
+  const mentionMatch = rawValue.match(/^<@!?(\d+)>$/);
+
+  if (mentionMatch) {
+    const linkedUsername = await getLinkedUsername(mentionMatch[1]);
+
+    if (!linkedUsername) {
+      return {
+        error: "That Discord user does not have a linked Anime.com profile."
+      };
+    }
+
+    return { username: linkedUsername };
+  }
+
+  if (rawValue.startsWith("@")) {
+    if (!interaction.inGuild()) {
+      return {
+        error:
+          "Discord-name lookup with `@` only works inside a server. Use an Anime.com username instead."
+      };
+    }
+
+    const matches = await findLinkedDiscordMatches(interaction, rawValue, 1);
+
+    if (!matches.length) {
+      return {
+        error:
+          `I couldn't find a linked Discord user matching \`${rawValue}\` here. Try the Anime.com username directly instead.`
+      };
+    }
+
+    return { username: matches[0].username };
+  }
+
+  return {
+    username: rawValue.replace(/^@/, "")
+  };
+}
+
 function canUseUntrack(interaction) {
   return Boolean(
     interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild) ||
@@ -579,6 +731,40 @@ client.once(Events.ClientReady, (readyClient) => {
 });
 
 client.on(Events.InteractionCreate, async (interaction) => {
+  if (interaction.isAutocomplete()) {
+    if (interaction.commandName !== "stats") {
+      return;
+    }
+
+    const focusedOption = interaction.options.getFocused(true);
+
+    if (focusedOption.name !== "username") {
+      await interaction.respond([]);
+      return;
+    }
+
+    const focusedValue = focusedOption.value.trim();
+
+    if (!focusedValue.startsWith("@")) {
+      await interaction.respond([]);
+      return;
+    }
+
+    try {
+      const matches = await findLinkedDiscordMatches(interaction, focusedValue, 25);
+      await interaction.respond(
+        matches.map((match) => ({
+          name: `@${match.displayName} -> @${match.username}`.slice(0, 100),
+          value: `discord:${match.discordUserId}`
+        }))
+      );
+    } catch (error) {
+      console.error(error);
+      await interaction.respond([]);
+    }
+    return;
+  }
+
   if (interaction.isButton()) {
     const parsed = parseListInfoCustomId(interaction.customId);
 
@@ -887,24 +1073,17 @@ client.on(Events.InteractionCreate, async (interaction) => {
     }
 
     if (interaction.commandName === "stats") {
-      const requestedUsername = interaction.options.getString("username")?.trim().replace(/^@/, "");
-      let username = requestedUsername;
+      const lookup = await resolveStatsLookup(interaction);
 
-      if (!username) {
-        username = await getLinkedUsername(interaction.user.id);
-      }
-
-      if (!username) {
-        await interaction.editReply(
-          "You do not have a linked Anime.com profile yet. Use `/link username:<your_username>` first, or run `/stats username:<user>` to view another public profile."
-        );
+      if (lookup.error) {
+        await interaction.editReply(lookup.error);
         return;
       }
 
-      const profile = await fetchAnimeProfile(username);
+      const profile = await fetchAnimeProfile(lookup.username);
 
       if (!profile) {
-        await interaction.editReply(`No public Anime.com profile was found for \`${username}\`.`);
+        await interaction.editReply(`No public Anime.com profile was found for \`${lookup.username}\`.`);
         return;
       }
 
