@@ -22,18 +22,14 @@ if (!token || !clientId) {
 
 const commands = [
   new SlashCommandBuilder()
-    .setName("profile")
-    .setDescription("Fetch a public Anime.com user profile.")
+    .setName("stats")
+    .setDescription("Show your linked Anime.com profile, or fetch another user's public profile.")
     .addStringOption((option) =>
       option
         .setName("username")
         .setDescription("Anime.com username, with or without @")
-        .setRequired(true)
+        .setRequired(false)
     )
-    .toJSON(),
-  new SlashCommandBuilder()
-    .setName("stats")
-    .setDescription("Show Anime.com stats for your linked profile.")
     .toJSON(),
   new SlashCommandBuilder()
     .setName("leaderboard")
