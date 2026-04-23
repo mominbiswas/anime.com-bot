@@ -27,7 +27,8 @@ const commands = [
     .addStringOption((option) =>
       option
         .setName("username")
-        .setDescription("Anime.com username, with or without @")
+        .setDescription("Use @DiscordName for linked users, or an Anime.com username directly")
+        .setAutocomplete(true)
         .setRequired(false)
     )
     .toJSON(),
