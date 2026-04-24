@@ -88,6 +88,40 @@ const commands = [
   ).toJSON(),
   applyGlobalAvailability(
     new SlashCommandBuilder()
+      .setName("compare")
+      .setDescription("Compare two public Anime.com profiles side by side.")
+      .addStringOption((option) =>
+        option
+          .setName("user_one")
+          .setDescription("First Anime.com username, with or without @")
+          .setRequired(true)
+      )
+      .addStringOption((option) =>
+        option
+          .setName("user_two")
+          .setDescription("Second Anime.com username, with or without @")
+          .setRequired(true)
+      )
+  ).toJSON(),
+  applyGlobalAvailability(
+    new SlashCommandBuilder()
+      .setName("rank")
+      .setDescription("Show a user's Anime.com leaderboard ranks.")
+      .addUserOption((option) =>
+        option
+          .setName("member")
+          .setDescription("Pick a Discord user who already linked their Anime.com account")
+          .setRequired(false)
+      )
+      .addStringOption((option) =>
+        option
+          .setName("username")
+          .setDescription("Anime.com username, with or without @")
+          .setRequired(false)
+      )
+  ).toJSON(),
+  applyGlobalAvailability(
+    new SlashCommandBuilder()
       .setName("track")
       .setDescription("Track an Anime.com username for the bot's shared leaderboard.")
       .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)

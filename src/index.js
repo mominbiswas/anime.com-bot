@@ -180,6 +180,60 @@ async function replyWithProfile(interaction, profile) {
   await interaction.editReply({ embeds: [embed] });
 }
 
+function formatStatValue(value) {
+  return value ?? "---";
+}
+
+function buildRankEmbed(profile, ranks) {
+  return {
+    color: parseColor(profile.accentColor),
+    title: `${profile.name} Ranks`,
+    url: profile.profileUrl,
+    description: `Leaderboard positions for \`@${profile.username}\`.`,
+    thumbnail: profile.avatarUrl ? { url: profile.avatarUrl } : undefined,
+    fields: [
+      { name: "Aura Rank", value: formatRank(ranks?.aura), inline: true },
+      { name: "Followers Rank", value: formatRank(ranks?.followers), inline: true },
+      { name: "Aura", value: formatStatValue(profile.aura), inline: true },
+      { name: "Followers", value: formatStatValue(profile.followers), inline: true }
+    ],
+    footer: {
+      text: "Ranks are based on linked and tracked Anime.com users"
+    }
+  };
+}
+
+function buildCompareEmbed(leftProfile, rightProfile, leftRanks, rightRanks) {
+  const leftLabel = `@${leftProfile.username}`;
+  const rightLabel = `@${rightProfile.username}`;
+  const rows = [
+    ["Aura", formatStatValue(leftProfile.aura), formatStatValue(rightProfile.aura)],
+    ["Aura Rank", formatRank(leftRanks?.aura), formatRank(rightRanks?.aura)],
+    ["Followers", formatStatValue(leftProfile.followers), formatStatValue(rightProfile.followers)],
+    ["Followers Rank", formatRank(leftRanks?.followers), formatRank(rightRanks?.followers)],
+    ["Comments", formatStatValue(leftProfile.comments), formatStatValue(rightProfile.comments)],
+    ["Lists", formatStatValue(leftProfile.lists), formatStatValue(rightProfile.lists)],
+    ["Reviews", formatStatValue(leftProfile.reviews), formatStatValue(rightProfile.reviews)],
+    ["Watching", formatStatValue(leftProfile.seriesWatching), formatStatValue(rightProfile.seriesWatching)],
+    ["Planning", formatStatValue(leftProfile.seriesPlanning), formatStatValue(rightProfile.seriesPlanning)],
+    ["Completed", formatStatValue(leftProfile.seriesCompleted), formatStatValue(rightProfile.seriesCompleted)],
+    ["Avg Rating", formatStatValue(leftProfile.avgSeriesRating), formatStatValue(rightProfile.avgSeriesRating)]
+  ];
+
+  return {
+    color: parseColor(leftProfile.accentColor ?? rightProfile.accentColor),
+    title: `${leftProfile.name} vs ${rightProfile.name}`,
+    description: `Side-by-side Anime.com comparison for \`${leftLabel}\` and \`${rightLabel}\`.`,
+    fields: rows.flatMap(([label, leftValue, rightValue]) => [
+      { name: `${label} (${leftLabel})`, value: leftValue, inline: true },
+      { name: `${label} (${rightLabel})`, value: rightValue, inline: true }
+    ]),
+    footer: {
+      text: "Data fetched from Anime.com public GraphQL endpoint"
+    }
+  };
+}
+
 function buildRawPayload(profile) {
   return {
     id: profile.id,
@@ -832,7 +886,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     return;
   }
 
-  if (!["profile-raw", "badgeinfo", "listinfo", "link", "verify", "unlink", "stats", "leaderboard", "track", "untrack"].includes(interaction.commandName)) {
+  if (!["profile-raw", "badgeinfo", "listinfo", "link", "verify", "unlink", "stats", "leaderboard", "track", "untrack", "compare", "rank"].includes(interaction.commandName)) {
     return;
   }
 
@@ -1029,6 +1083,62 @@ client.on(Events.InteractionCreate, async (interaction) => {
       await interaction.editReply({
         embeds: [buildLeaderboardEmbed(metric, leaderboard.rows, leaderboard.totalUsers, 0, perPage)],
         components: buildLeaderboardComponents(metric, leaderboard.rows, 0, perPage, interaction.guildId)
+      });
+      return;
+    }
+
+    if (interaction.commandName === "compare") {
+      const firstUsername = interaction.options.getString("user_one", true).trim().replace(/^@/, "");
+      const secondUsername = interaction.options.getString("user_two", true).trim().replace(/^@/, "");
+
+      if (firstUsername.toLowerCase() === secondUsername.toLowerCase()) {
+        await interaction.editReply("Pick two different Anime.com users to compare.");
+        return;
+      }
+
+      const [leftProfile, rightProfile] = await Promise.all([
+        fetchAnimeProfile(firstUsername),
+        fetchAnimeProfile(secondUsername)
+      ]);
+
+      if (!leftProfile || !rightProfile) {
+        const missingUsers = [
+          !leftProfile ? `\`${firstUsername}\`` : null,
+          !rightProfile ? `\`${secondUsername}\`` : null
+        ].filter(Boolean);
+        await interaction.editReply(`No public Anime.com profile was found for ${missingUsers.join(" and ")}.`);
+        return;
+      }
+
+      const [leftRanks, rightRanks] = await Promise.all([
+        fetchProfileRanks(leftProfile.username, interaction.guildId),
+        fetchProfileRanks(rightProfile.username, interaction.guildId)
+      ]);
+
+      await interaction.editReply({
+        embeds: [buildCompareEmbed(leftProfile, rightProfile, leftRanks, rightRanks)]
+      });
+      return;
+    }
+
+    if (interaction.commandName === "rank") {
+      const lookup = await resolveStatsLookup(interaction);
+
+      if (lookup.error) {
+        await interaction.editReply(lookup.error);
+        return;
+      }
+
+      const profile = await fetchAnimeProfile(lookup.username);
+
+      if (!profile) {
+        await interaction.editReply(`No public Anime.com profile was found for \`${lookup.username}\`.`);
+        return;
+      }
+
+      const ranks = await fetchProfileRanks(profile.username, interaction.guildId);
+      await interaction.editReply({
+        embeds: [buildRankEmbed(profile, ranks)]
       });
       return;
     }
