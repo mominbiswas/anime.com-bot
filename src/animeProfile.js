@@ -387,3 +387,43 @@ export async function fetchAnimeListInfo(username, status) {
     inflightListRequests.delete(cacheKey);
   }
 }
+
+export async function fetchAnimeRecentEntries(username, limit = 10) {
+  const safeUsername = normalizeUsername(username);
+  const profile = await fetchAnimeProfile(safeUsername);
+
+  if (!profile) {
+    return null;
+  }
+
+  const watchlistData = await fetchAnimeGraphQL({
+    operationName: "GetWatchListByUserId",
+    variables: {
+      languageCode: "en",
+      userId: profile.id
+    },
+    query: GET_WATCHLIST_BY_USER_ID_QUERY,
+    refererUsername: profile.username,
+    allowPartialData: true
+  });
+
+  const items = (watchlistData?.watchListByUserId?.items ?? [])
+    .filter((item) => item.ipTitle && item.updatedAt)
+    .map((item) => ({
+      id: item.id ?? `${item.ipTitle?.showPageSlug ?? item.ipTitle?.slug ?? item.updatedAt}`,
+      status: item.status,
+      rating: item.rating,
+      updatedAt: item.updatedAt,
+      title: item.ipTitle?.translation?.name ?? item.ipTitle?.slug ?? "Unknown title",
+      slug: item.ipTitle?.showPageSlug ?? item.ipTitle?.slug ?? null
+    }))
+    .sort((left, right) => (right.updatedAt ?? "").localeCompare(left.updatedAt ?? ""))
+    .slice(0, Math.max(1, limit));
+
+  return {
+    username: profile.username,
+    profileUrl: profile.profileUrl,
+    total: items.length,
+    items
+  };
+}

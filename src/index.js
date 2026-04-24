@@ -13,7 +13,7 @@ import {
   TextInputBuilder,
   TextInputStyle
 } from "discord.js";
-import { fetchAnimeListInfo, fetchAnimeProfile } from "./animeProfile.js";
+import { fetchAnimeListInfo, fetchAnimeProfile, fetchAnimeRecentEntries } from "./animeProfile.js";
 import { renderBadgeIcon } from "./badgeIcons.js";
 import { renderBadgeStrip } from "./badgeStrip.js";
 import {
@@ -280,6 +280,111 @@ function buildTopBadgesEmbed(type, rows, totalUsers, limit) {
     description: lines.join("\n"),
     footer: {
       text: `Showing top ${visibleRows.length} of ${totalUsers} linked and tracked users`
+    }
+  };
+}
+
+function formatShortDateTime(value) {
+  if (!value) {
+    return "---";
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "---";
+  }
+
+  return new Intl.DateTimeFormat("en-US", {
+    day: "numeric",
+    month: "short"
+  }).format(date);
+}
+
+function buildRecentEmbed(recentInfo) {
+  const lines = recentInfo.items.map((item, index) => {
+    const rating = typeof item.rating === "number" ? ` | Rating ${item.rating}` : "";
+    return `${index + 1}. ${item.title} | ${formatStatusLabel(item.status)} | ${formatShortDateTime(item.updatedAt)}${rating}`;
+  });
+
+  return {
+    color: 0x4cc9f0,
+    title: `${recentInfo.username} Recent Updates`,
+    url: recentInfo.profileUrl,
+    description: `Most recently updated Anime.com entries for \`@${recentInfo.username}\`.`,
+    fields: [
+      {
+        name: "Entries",
+        value: lines.length ? truncate(lines.join("\n"), 1024) : "No recent entries found.",
+        inline: false
+      }
+    ],
+    footer: {
+      text: `Showing ${recentInfo.items.length} recent entr${recentInfo.items.length === 1 ? "y" : "ies"}`
+    }
+  };
+}
+
+function buildBadgesEmbed(profile, type) {
+  const badgeSource = {
+    displayed: profile.displayedBadges,
+    earned: profile.earnedBadges,
+    grouped: profile.earnedBadges
+  }[type] ?? profile.displayedBadges;
+
+  if (type === "grouped") {
+    const grouped = new Map();
+
+    for (const badge of badgeSource) {
+      const key = badge.badgeFamily ?? badge.key;
+      const current = grouped.get(key);
+
+      if (!current) {
+        grouped.set(key, {
+          name: badge.rawName ?? badge.name ?? badge.key,
+          highestTier: badge.tier ?? null,
+          count: 1
+        });
+        continue;
+      }
+
+      current.count += 1;
+      current.highestTier = Math.max(current.highestTier ?? 0, badge.tier ?? 0) || null;
+    }
+
+    const fields = [...grouped.values()]
+      .sort((left, right) => {
+        const tierDiff = (right.highestTier ?? 0) - (left.highestTier ?? 0);
+        return tierDiff !== 0 ? tierDiff : left.name.localeCompare(right.name);
+      })
+      .slice(0, 15)
+      .map((badge) => ({
+        name: badge.name,
+        value: `Highest tier: ${badge.highestTier ? `T${badge.highestTier}` : "Base"} | Earned: ${badge.count}`,
+        inline: false
+      }));
+
+    return {
+      color: parseColor(profile.accentColor),
+      title: `${profile.name} Badges`,
+      url: profile.profileUrl,
+      description: `Grouped Anime.com badge families for \`@${profile.username}\`.`,
+      thumbnail: profile.avatarUrl ? { url: profile.avatarUrl } : undefined,
+      fields,
+      footer: {
+        text: `${grouped.size} badge family${grouped.size === 1 ? "" : "ies"}`
+      }
+    };
+  }
+
+  return {
+    color: parseColor(profile.accentColor),
+    title: `${profile.name} Badges`,
+    url: profile.profileUrl,
+    description: `${type === "displayed" ? "Displayed" : "All earned"} Anime.com badges for \`@${profile.username}\`.`,
+    thumbnail: profile.avatarUrl ? { url: profile.avatarUrl } : undefined,
+    footer: {
+      text: `${badgeSource.length} badge${badgeSource.length === 1 ? "" : "s"}`
     }
   };
 }
@@ -678,7 +783,12 @@ function parseMetricValue(profile, metric) {
 function formatMetricLabel(metric) {
   return {
     aura: "Aura",
-    followers: "Followers"
+    followers: "Followers",
+    completed: "Completed",
+    watching: "Watching",
+    planning: "Planning",
+    dropped: "Dropped",
+    avgRating: "Avg Rating"
   }[metric] ?? metric;
 }
 
@@ -873,6 +983,11 @@ async function fetchLeaderboardProfiles(guildId) {
         username: profile.username,
         aura: parseMetricValue(profile, "aura"),
         followers: parseMetricValue(profile, "followers"),
+        completed: parseMetricValue(profile, "seriesCompleted"),
+        watching: parseMetricValue(profile, "seriesWatching"),
+        planning: parseMetricValue(profile, "seriesPlanning"),
+        dropped: parseMetricValue(profile, "seriesDropped"),
+        avgRating: parseMetricValue(profile, "avgSeriesRating"),
         earnedBadgeCount: profile.earnedBadges?.length ?? 0,
         displayedBadgeCount: profile.displayedBadges?.length ?? 0
       };
@@ -1124,7 +1239,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     return;
   }
 
-  if (!["profile-raw", "badgeinfo", "listinfo", "liststats", "link", "verify", "unlink", "stats", "leaderboard", "topbadges", "track", "untrack", "compare", "rank", "history", "serverstats"].includes(interaction.commandName)) {
+  if (!["profile-raw", "badgeinfo", "badges", "recent", "listinfo", "liststats", "link", "verify", "unlink", "stats", "leaderboard", "topbadges", "toplists", "track", "untrack", "compare", "rank", "history", "serverstats"].includes(interaction.commandName)) {
     return;
   }
 
@@ -1352,6 +1467,32 @@ client.on(Events.InteractionCreate, async (interaction) => {
       return;
     }
 
+    if (interaction.commandName === "toplists") {
+      const metric = interaction.options.getString("metric", true);
+      const perPage = interaction.options.getInteger("limit") ?? 10;
+      const leaderboard = await fetchLeaderboardRows(metric, interaction.guildId);
+
+      if (!leaderboard.totalUsers) {
+        await interaction.editReply(
+          "There are no linked or tracked Anime.com accounts to rank yet. Use `/link` or have an admin add profiles with `/track` first."
+        );
+        return;
+      }
+
+      if (!leaderboard.rows.length) {
+        await interaction.editReply(
+          `I couldn't build a ${formatMetricLabel(metric).toLowerCase()} leaderboard from the linked and tracked accounts right now.`
+        );
+        return;
+      }
+
+      await interaction.editReply({
+        embeds: [buildLeaderboardEmbed(metric, leaderboard.rows, leaderboard.totalUsers, 0, perPage)],
+        components: buildLeaderboardComponents(metric, leaderboard.rows, 0, perPage, interaction.guildId)
+      });
+      return;
+    }
+
     if (interaction.commandName === "compare") {
       const firstUsername = interaction.options.getString("user_one", true).trim().replace(/^@/, "");
       const secondUsername = interaction.options.getString("user_two", true).trim().replace(/^@/, "");
@@ -1459,6 +1600,73 @@ client.on(Events.InteractionCreate, async (interaction) => {
       await interaction.editReply({
         embeds: [buildListStatsEmbed(profile)]
       });
+      return;
+    }
+
+    if (interaction.commandName === "recent") {
+      const lookup = await resolveStatsLookup(interaction);
+
+      if (lookup.error) {
+        await interaction.editReply(lookup.error);
+        return;
+      }
+
+      const limit = interaction.options.getInteger("limit") ?? 10;
+      const recentInfo = await fetchAnimeRecentEntries(lookup.username, limit);
+
+      if (!recentInfo) {
+        await interaction.editReply(`No public Anime.com profile was found for \`${lookup.username}\`.`);
+        return;
+      }
+
+      const profile = await fetchAnimeProfile(recentInfo.username);
+
+      if (profile) {
+        await recordHistorySnapshot(profile);
+      }
+
+      await interaction.editReply({
+        embeds: [buildRecentEmbed(recentInfo)]
+      });
+      return;
+    }
+
+    if (interaction.commandName === "badges") {
+      const lookup = await resolveStatsLookup(interaction);
+
+      if (lookup.error) {
+        await interaction.editReply(lookup.error);
+        return;
+      }
+
+      const type = interaction.options.getString("type", true);
+      const profile = await fetchAnimeProfile(lookup.username);
+
+      if (!profile) {
+        await interaction.editReply(`No public Anime.com profile was found for \`${lookup.username}\`.`);
+        return;
+      }
+
+      await recordHistorySnapshot(profile);
+      const embed = buildBadgesEmbed(profile, type);
+
+      if (type === "grouped") {
+        await interaction.editReply({ embeds: [embed] });
+        return;
+      }
+
+      const strip = await renderBadgeStrip(type === "displayed" ? profile.displayedBadges : profile.earnedBadges);
+
+      if (strip) {
+        embed.image = { url: "attachment://badges.png" };
+        await interaction.editReply({
+          embeds: [embed],
+          files: [new AttachmentBuilder(strip, { name: "badges.png" })]
+        });
+        return;
+      }
+
+      await interaction.editReply({ embeds: [embed] });
       return;
     }
 

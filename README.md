@@ -11,9 +11,12 @@ The bot currently supports:
 - `/history` for aura/follower snapshot history
 - `/compare` for side-by-side public profile comparison
 - `/leaderboard` for ranked linked/tracked users
+- `/toplists` for completed/watching/planning/dropped/avg-rating leaderboards
 - `/topbadges` for badge-count leaderboards
 - `/serverstats` for server bot-data summary
 - `/liststats` for compact list counts
+- `/recent` for recently updated entries
+- `/badges` for displayed, earned, or grouped badges
 - `/listinfo` for public anime list status views
 - `/profile-raw` for the raw public JSON payload
 
@@ -79,9 +82,12 @@ In Discord:
 /rank username: anfal
 /history username: anfal
 /compare user_one: anfal user_two: shomik
+/toplists metric: completed
 /topbadges type: displayed
 /serverstats
 /liststats username: anfal
+/recent username: anfal
+/badges username: anfal type: displayed
 /listinfo username: anfal status: COMPLETED
 /profile-raw username: anfal
 ```
