@@ -6,11 +6,14 @@ A small Discord bot that fetches public Anime.com profile information for userna
 
 The bot currently supports:
 
-- `/profile` for a clean public profile embed
+- `/stats` for your linked Anime.com profile or another public profile
+- `/rank` for aura/followers leaderboard positions
+- `/compare` for side-by-side public profile comparison
+- `/leaderboard` for ranked linked/tracked users
+- `/listinfo` for public anime list status views
 - `/profile-raw` for the raw public JSON payload
-- `/badgeinfo` for finding badges by name, key, or keyword
 
-The `/profile` slash command fetches public data from Anime.com's public GraphQL endpoint and shows:
+The `/stats` slash command fetches public data from Anime.com's public GraphQL endpoint and shows:
 
 - display name
 - aura
@@ -41,9 +44,11 @@ npm install
 ```env
 DISCORD_TOKEN=your_bot_token_here
 DISCORD_CLIENT_ID=your_application_client_id_here
+REGISTER_MODE=guild
 DISCORD_GUILD_ID=optional_test_server_id_here
 DISCORD_GUILD_IDS=optional_comma_separated_test_server_ids
 DATA_DIR=optional_persistent_data_directory
+ANIME_CACHE_TTL_MS=120000
 ```
 
 4. Register the slash command:
@@ -52,8 +57,14 @@ DATA_DIR=optional_persistent_data_directory
 npm run register
 ```
 
-If `DISCORD_GUILD_ID` is set, the command is registered to that server immediately for testing. If it is omitted, the command is registered globally and can take a bit longer to appear.
-If `DISCORD_GUILD_IDS` is set, commands are registered to each of those guilds.
+Registration modes:
+
+- `REGISTER_MODE=guild`
+  Use test-server registration. Commands register only to `DISCORD_GUILD_ID` / `DISCORD_GUILD_IDS` and appear quickly.
+- `REGISTER_MODE=global`
+  Use public/global registration. Commands register globally, support broader install contexts, and can take longer to appear.
+
+Using only one mode at a time avoids duplicate commands.
 
 5. Start the bot:
 
@@ -66,13 +77,17 @@ npm start
 In Discord:
 
 ```text
-/profile username: anfal
+/stats
+/stats username: anfal
+/rank username: anfal
+/compare user_one: anfal user_two: shomik
+/listinfo username: anfal status: COMPLETED
 /profile-raw username: anfal
-/badgeinfo username: anfal badge: early
 ```
 
 ## Notes
 
 - The bot currently uses the `GetPublicUserProfile` query against `https://www.anime.com/api/graphql`.
-- If Anime.com changes that query or starts blocking bot-like traffic, we may need to add retries, caching, or a browser-based fallback.
+- Anime.com responses are cached briefly in memory. You can change the TTL with `ANIME_CACHE_TTL_MS`.
+- If Anime.com changes that query or starts blocking bot-like traffic, we may need to add retries, longer caching, or a browser-based fallback.
 - For Railway or other hosts, set `DATA_DIR` to a persistent mounted folder if you want tracked profiles and linked accounts to survive redeploys and restarts.
