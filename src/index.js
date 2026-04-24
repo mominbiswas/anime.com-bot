@@ -184,6 +184,14 @@ function formatStatValue(value) {
   return value ?? "---";
 }
 
+function buildTwoColumnFields(rows) {
+  return rows.flatMap((row) => [
+    { ...row.left, inline: true },
+    { ...row.right, inline: true },
+    { name: "\u200B", value: "\u200B", inline: true }
+  ]);
+}
+
 function buildRankEmbed(profile, ranks) {
   return {
     color: parseColor(profile.accentColor),
@@ -191,12 +199,16 @@ function buildRankEmbed(profile, ranks) {
     url: profile.profileUrl,
     description: `Leaderboard positions for \`@${profile.username}\`.`,
     thumbnail: profile.avatarUrl ? { url: profile.avatarUrl } : undefined,
-    fields: [
-      { name: "Aura Rank", value: formatRank(ranks?.aura), inline: true },
-      { name: "Followers Rank", value: formatRank(ranks?.followers), inline: true },
-      { name: "Aura", value: formatStatValue(profile.aura), inline: true },
-      { name: "Followers", value: formatStatValue(profile.followers), inline: true }
-    ],
+    fields: buildTwoColumnFields([
+      {
+        left: { name: "Aura Rank", value: formatRank(ranks?.aura) },
+        right: { name: "Followers Rank", value: formatRank(ranks?.followers) }
+      },
+      {
+        left: { name: "Aura", value: formatStatValue(profile.aura) },
+        right: { name: "Followers", value: formatStatValue(profile.followers) }
+      }
+    ]),
     footer: {
       text: "Ranks are based on linked and tracked Anime.com users"
     }
@@ -224,10 +236,12 @@ function buildCompareEmbed(leftProfile, rightProfile, leftRanks, rightRanks) {
     color: parseColor(leftProfile.accentColor ?? rightProfile.accentColor),
     title: `${leftProfile.name} vs ${rightProfile.name}`,
     description: `Side-by-side Anime.com comparison for \`${leftLabel}\` and \`${rightLabel}\`.`,
-    fields: rows.flatMap(([label, leftValue, rightValue]) => [
-      { name: `${label} (${leftLabel})`, value: leftValue, inline: true },
-      { name: `${label} (${rightLabel})`, value: rightValue, inline: true }
-    ]),
+    fields: buildTwoColumnFields(
+      rows.map(([label, leftValue, rightValue]) => ({
+        left: { name: `${label} (${leftLabel})`, value: leftValue },
+        right: { name: `${label} (${rightLabel})`, value: rightValue }
+      }))
+    ),
     footer: {
       text: "Data fetched from Anime.com public GraphQL endpoint"
     }
