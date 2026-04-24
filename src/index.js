@@ -244,8 +244,8 @@ function buildCompareEmbed(leftProfile, rightProfile, leftRanks, rightRanks) {
       .join("\n\n");
 
     fields.push(
-      { name: leftLabel, value: leftValue, inline: true },
-      { name: rightLabel, value: rightValue, inline: true },
+      { name: "\u200B", value: leftValue, inline: true },
+      { name: "\u200B", value: rightValue, inline: true },
       { name: "\u200B", value: "\u200B", inline: true }
     );
   }
