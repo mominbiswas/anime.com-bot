@@ -32,6 +32,10 @@ import {
   getTrackedUsernames,
   removeTrackedUsername
 } from "./trackedProfiles.js";
+import {
+  getHistorySnapshots,
+  recordHistorySnapshot
+} from "./historyStore.js";
 
 const token = process.env.DISCORD_TOKEN;
 const allowedUntrackUserIds = new Set(
@@ -276,6 +280,142 @@ function buildTopBadgesEmbed(type, rows, totalUsers, limit) {
     description: lines.join("\n"),
     footer: {
       text: `Showing top ${visibleRows.length} of ${totalUsers} linked and tracked users`
+    }
+  };
+}
+
+function formatHistoryDelta(currentValue, previousValue) {
+  if (currentValue == null || previousValue == null) {
+    return "Not enough history";
+  }
+
+  const delta = currentValue - previousValue;
+
+  if (delta === 0) {
+    return "No change";
+  }
+
+  return `${delta > 0 ? "+" : ""}${delta}`;
+}
+
+function findSnapshotAtLeastDaysOld(snapshots, minDays) {
+  if (!snapshots.length) {
+    return null;
+  }
+
+  const latestDate = new Date(`${snapshots[snapshots.length - 1].date}T00:00:00Z`);
+
+  for (let index = snapshots.length - 2; index >= 0; index -= 1) {
+    const snapshot = snapshots[index];
+    const snapshotDate = new Date(`${snapshot.date}T00:00:00Z`);
+    const daysDiff = Math.floor((latestDate - snapshotDate) / 86400000);
+
+    if (daysDiff >= minDays) {
+      return snapshot;
+    }
+  }
+
+  return null;
+}
+
+function formatSnapshotLine(snapshot) {
+  const date = new Date(`${snapshot.date}T00:00:00Z`);
+  const formattedDate = new Intl.DateTimeFormat("en-US", {
+    day: "numeric",
+    month: "short"
+  }).format(date);
+
+  return `${formattedDate}  |  Aura ${formatStatValue(snapshot.aura)}  |  Followers ${formatStatValue(snapshot.followers)}`;
+}
+
+function buildHistoryEmbed(profile, snapshots) {
+  const latest = snapshots[snapshots.length - 1] ?? null;
+  const weekAgo = findSnapshotAtLeastDaysOld(snapshots, 7);
+  const monthAgo = findSnapshotAtLeastDaysOld(snapshots, 30);
+  const currentAura = latest?.aura ?? parseMetricValue(profile, "aura");
+  const currentFollowers = latest?.followers ?? parseMetricValue(profile, "followers");
+  const recentLines = snapshots
+    .slice(-8)
+    .reverse()
+    .map(formatSnapshotLine);
+
+  return {
+    color: parseColor(profile.accentColor),
+    title: `${profile.name} History`,
+    url: profile.profileUrl,
+    description: `Daily Anime.com stat snapshots for \`@${profile.username}\`.`,
+    thumbnail: profile.avatarUrl ? { url: profile.avatarUrl } : undefined,
+    fields: buildTwoColumnFields([
+      {
+        left: { name: "Current Aura", value: formatStatValue(currentAura) },
+        right: { name: "Current Followers", value: formatStatValue(currentFollowers) }
+      },
+      {
+        left: {
+          name: "Aura Change (7d)",
+          value: formatHistoryDelta(currentAura, weekAgo?.aura)
+        },
+        right: {
+          name: "Followers Change (7d)",
+          value: formatHistoryDelta(currentFollowers, weekAgo?.followers)
+        }
+      },
+      {
+        left: {
+          name: "Aura Change (30d)",
+          value: formatHistoryDelta(currentAura, monthAgo?.aura)
+        },
+        right: {
+          name: "Followers Change (30d)",
+          value: formatHistoryDelta(currentFollowers, monthAgo?.followers)
+        }
+      },
+      {
+        left: { name: "Snapshots Saved", value: `${snapshots.length}` },
+        right: { name: "Tracking Window", value: snapshots.length > 1 ? `${snapshots[0].date} → ${snapshots[snapshots.length - 1].date}` : "Started today" }
+      }
+    ]).concat({
+      name: "Recent Snapshots",
+      value: recentLines.length ? recentLines.join("\n") : "Only one snapshot is available so far.",
+      inline: false
+    }),
+    footer: {
+      text: "History updates when this bot fetches that profile"
+    }
+  };
+}
+
+function buildServerStatsEmbed({ guildName, linkedUsers, trackedUsers, totalUsers, topAuraRow, topFollowersRow }) {
+  const formatLeader = (row, label) => {
+    if (!row) {
+      return `No ${label.toLowerCase()} data yet`;
+    }
+
+    return row.discordUserId
+      ? `<@${row.discordUserId}>  |  \`${row.value}\` ${label.toLowerCase()}  |  \`@${row.username}\``
+      : `\`@${row.username}\`  |  \`${row.value}\` ${label.toLowerCase()}`;
+  };
+
+  return {
+    color: 0x6bd6ff,
+    title: `${guildName} Server Stats`,
+    description: "Summary of the bot's linked and tracked Anime.com data pool available in this server.",
+    fields: buildTwoColumnFields([
+      {
+        left: { name: "Linked Users", value: `${linkedUsers}` },
+        right: { name: "Tracked Users", value: `${trackedUsers}` }
+      },
+      {
+        left: { name: "Total Ranked Users", value: `${totalUsers}` },
+        right: { name: "Top Aura User", value: formatLeader(topAuraRow, "Aura") }
+      },
+      {
+        left: { name: "Top Followers User", value: formatLeader(topFollowersRow, "Followers") },
+        right: { name: "Data Scope", value: "Shared bot-wide pool" }
+      }
+    ]),
+    footer: {
+      text: "Counts come from linked accounts plus tracked Anime.com usernames"
     }
   };
 }
@@ -726,6 +866,8 @@ async function fetchLeaderboardProfiles(guildId) {
         return null;
       }
 
+      await recordHistorySnapshot(profile);
+
       return {
         discordUserId,
         username: profile.username,
@@ -982,7 +1124,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     return;
   }
 
-  if (!["profile-raw", "badgeinfo", "listinfo", "liststats", "link", "verify", "unlink", "stats", "leaderboard", "topbadges", "track", "untrack", "compare", "rank"].includes(interaction.commandName)) {
+  if (!["profile-raw", "badgeinfo", "listinfo", "liststats", "link", "verify", "unlink", "stats", "leaderboard", "topbadges", "track", "untrack", "compare", "rank", "history", "serverstats"].includes(interaction.commandName)) {
     return;
   }
 
@@ -1091,6 +1233,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
         await interaction.editReply(`No public Anime.com profile was found for \`${lookup.username}\`.`);
         return;
       }
+
+      await recordHistorySnapshot(profile);
 
       if (interaction.guildId) {
         try {
@@ -1231,6 +1375,11 @@ client.on(Events.InteractionCreate, async (interaction) => {
         return;
       }
 
+      await Promise.all([
+        recordHistorySnapshot(leftProfile),
+        recordHistorySnapshot(rightProfile)
+      ]);
+
       const [leftRanks, rightRanks] = await Promise.all([
         fetchProfileRanks(leftProfile.username, interaction.guildId),
         fetchProfileRanks(rightProfile.username, interaction.guildId)
@@ -1257,9 +1406,35 @@ client.on(Events.InteractionCreate, async (interaction) => {
         return;
       }
 
+      await recordHistorySnapshot(profile);
+
       const ranks = await fetchProfileRanks(profile.username, interaction.guildId);
       await interaction.editReply({
         embeds: [buildRankEmbed(profile, ranks)]
+      });
+      return;
+    }
+
+    if (interaction.commandName === "history") {
+      const lookup = await resolveStatsLookup(interaction);
+
+      if (lookup.error) {
+        await interaction.editReply(lookup.error);
+        return;
+      }
+
+      const profile = await fetchAnimeProfile(lookup.username);
+
+      if (!profile) {
+        await interaction.editReply(`No public Anime.com profile was found for \`${lookup.username}\`.`);
+        return;
+      }
+
+      await recordHistorySnapshot(profile);
+      const snapshots = await getHistorySnapshots(profile.username);
+
+      await interaction.editReply({
+        embeds: [buildHistoryEmbed(profile, snapshots)]
       });
       return;
     }
@@ -1279,8 +1454,39 @@ client.on(Events.InteractionCreate, async (interaction) => {
         return;
       }
 
+      await recordHistorySnapshot(profile);
+
       await interaction.editReply({
         embeds: [buildListStatsEmbed(profile)]
+      });
+      return;
+    }
+
+    if (interaction.commandName === "serverstats") {
+      if (!interaction.inGuild() || !interaction.guildId || !interaction.guild) {
+        await interaction.editReply("`/serverstats` only works inside a server.");
+        return;
+      }
+
+      const [linkedProfiles, trackedUsernames, leaderboardProfiles, auraLeaderboard, followersLeaderboard] = await Promise.all([
+        getAllLinkedProfiles(),
+        getTrackedUsernames(),
+        fetchLeaderboardProfiles(interaction.guildId),
+        fetchLeaderboardRows("aura", interaction.guildId),
+        fetchLeaderboardRows("followers", interaction.guildId)
+      ]);
+
+      await interaction.editReply({
+        embeds: [
+          buildServerStatsEmbed({
+            guildName: interaction.guild.name,
+            linkedUsers: linkedProfiles.length,
+            trackedUsers: trackedUsernames.length,
+            totalUsers: leaderboardProfiles.totalUsers,
+            topAuraRow: auraLeaderboard.rows[0] ?? null,
+            topFollowersRow: followersLeaderboard.rows[0] ?? null
+          })
+        ]
       });
       return;
     }
@@ -1314,6 +1520,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
       await interaction.editReply(`No public Anime.com profile was found for \`${username}\`.`);
       return;
     }
+
+    await recordHistorySnapshot(profile);
 
     if (interaction.commandName === "badgeinfo") {
       const badgeQuery = interaction.options.getString("badge", true);
