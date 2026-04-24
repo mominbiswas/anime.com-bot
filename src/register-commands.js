@@ -11,6 +11,7 @@ import {
 const token = process.env.DISCORD_TOKEN;
 const clientId = process.env.DISCORD_CLIENT_ID;
 const guildId = process.env.DISCORD_GUILD_ID;
+const registerMode = (process.env.REGISTER_MODE ?? "guild").trim().toLowerCase();
 const guildIds = [
   ...new Set(
     [
@@ -27,7 +28,15 @@ if (!token || !clientId) {
   throw new Error("Missing DISCORD_TOKEN or DISCORD_CLIENT_ID in environment.");
 }
 
-const isGlobalRegistration = guildIds.length === 0;
+if (!["guild", "global"].includes(registerMode)) {
+  throw new Error("REGISTER_MODE must be either 'guild' or 'global'.");
+}
+
+if (registerMode === "guild" && guildIds.length === 0) {
+  throw new Error("REGISTER_MODE is 'guild', but no DISCORD_GUILD_ID or DISCORD_GUILD_IDS were provided.");
+}
+
+const isGlobalRegistration = registerMode === "global";
 
 function applyGlobalAvailability(command) {
   if (!isGlobalRegistration) {
@@ -218,7 +227,7 @@ const commands = [
 const rest = new REST({ version: "10" }).setToken(token);
 
 try {
-  if (guildIds.length) {
+  if (!isGlobalRegistration) {
     for (const currentGuildId of guildIds) {
       const route = Routes.applicationGuildCommands(clientId, currentGuildId);
 
