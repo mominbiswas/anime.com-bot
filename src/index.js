@@ -261,6 +261,25 @@ function buildCompareEmbed(leftProfile, rightProfile, leftRanks, rightRanks) {
   };
 }
 
+function buildTopBadgesEmbed(type, rows, totalUsers, limit) {
+  const metricLabel = formatBadgeMetricLabel(type);
+  const visibleRows = rows.slice(0, limit);
+  const lines = visibleRows.map((row, index) =>
+    row.discordUserId
+      ? `**${index + 1}.** <@${row.discordUserId}>  |  \`${row.value}\` ${metricLabel.toLowerCase()}  |  \`@${row.username}\``
+      : `**${index + 1}.** \`@${row.username}\`  |  \`${row.value}\` ${metricLabel.toLowerCase()}`
+  );
+
+  return {
+    color: 0xf4d35e,
+    title: `${metricLabel} Leaderboard`,
+    description: lines.join("\n"),
+    footer: {
+      text: `Showing top ${visibleRows.length} of ${totalUsers} linked and tracked users`
+    }
+  };
+}
+
 function buildRawPayload(profile) {
   return {
     id: profile.id,
@@ -435,6 +454,37 @@ function buildListInfoComponents(listInfo, page, perPage) {
         .setStyle(ButtonStyle.Primary)
     )
   ];
+}
+
+function formatBadgeMetricLabel(type) {
+  return type === "earned" ? "Earned Badges" : "Displayed Badges";
+}
+
+function buildListStatsEmbed(profile) {
+  return {
+    color: parseColor(profile.accentColor),
+    title: `${profile.name} List Stats`,
+    url: profile.profileUrl,
+    description: `Compact Anime.com list counts for \`@${profile.username}\`.`,
+    thumbnail: profile.avatarUrl ? { url: profile.avatarUrl } : undefined,
+    fields: buildTwoColumnFields([
+      {
+        left: { name: "Completed", value: formatStatValue(profile.seriesCompleted) },
+        right: { name: "Watching", value: formatStatValue(profile.seriesWatching) }
+      },
+      {
+        left: { name: "Planning", value: formatStatValue(profile.seriesPlanning) },
+        right: { name: "Dropped", value: formatStatValue(profile.seriesDropped) }
+      },
+      {
+        left: { name: "Avg Rating", value: formatStatValue(profile.avgSeriesRating) },
+        right: { name: "Lists", value: formatStatValue(profile.lists) }
+      }
+    ]),
+    footer: {
+      text: "Data fetched from Anime.com public GraphQL endpoint"
+    }
+  };
 }
 
 function buildLeaderboardCustomId({ metric, page, perPage, guildId }) {
@@ -618,6 +668,23 @@ async function fetchLeaderboardRows(metric, guildId) {
   };
 }
 
+async function fetchBadgeLeaderboardRows(type, guildId) {
+  const leaderboardProfiles = await fetchLeaderboardProfiles(guildId);
+  const metricKey = type === "earned" ? "earnedBadgeCount" : "displayedBadgeCount";
+
+  return {
+    totalUsers: leaderboardProfiles.totalUsers,
+    rows: leaderboardProfiles.rows
+      .filter((row) => row[metricKey] != null)
+      .map((row) => ({
+        discordUserId: row.discordUserId,
+        username: row.username,
+        value: row[metricKey]
+      }))
+      .sort((left, right) => right.value - left.value)
+  };
+}
+
 async function fetchLeaderboardProfiles(guildId) {
   const linkedProfiles = await getAllLinkedProfiles();
   const forcedUnlinkedUsernames = new Set(await getAllForcedUnlinkedUsernames());
@@ -663,7 +730,9 @@ async function fetchLeaderboardProfiles(guildId) {
         discordUserId,
         username: profile.username,
         aura: parseMetricValue(profile, "aura"),
-        followers: parseMetricValue(profile, "followers")
+        followers: parseMetricValue(profile, "followers"),
+        earnedBadgeCount: profile.earnedBadges?.length ?? 0,
+        displayedBadgeCount: profile.displayedBadges?.length ?? 0
       };
     })
   );
@@ -913,7 +982,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     return;
   }
 
-  if (!["profile-raw", "badgeinfo", "listinfo", "link", "verify", "unlink", "stats", "leaderboard", "track", "untrack", "compare", "rank"].includes(interaction.commandName)) {
+  if (!["profile-raw", "badgeinfo", "listinfo", "liststats", "link", "verify", "unlink", "stats", "leaderboard", "topbadges", "track", "untrack", "compare", "rank"].includes(interaction.commandName)) {
     return;
   }
 
@@ -1114,6 +1183,31 @@ client.on(Events.InteractionCreate, async (interaction) => {
       return;
     }
 
+    if (interaction.commandName === "topbadges") {
+      const type = interaction.options.getString("type", true);
+      const limit = interaction.options.getInteger("limit") ?? 10;
+      const leaderboard = await fetchBadgeLeaderboardRows(type, interaction.guildId);
+
+      if (!leaderboard.totalUsers) {
+        await interaction.editReply(
+          "There are no linked or tracked Anime.com accounts to rank yet. Use `/link` or have an admin add profiles with `/track` first."
+        );
+        return;
+      }
+
+      if (!leaderboard.rows.length) {
+        await interaction.editReply(
+          `I couldn't build a ${formatBadgeMetricLabel(type).toLowerCase()} leaderboard from the linked and tracked accounts right now.`
+        );
+        return;
+      }
+
+      await interaction.editReply({
+        embeds: [buildTopBadgesEmbed(type, leaderboard.rows, leaderboard.totalUsers, limit)]
+      });
+      return;
+    }
+
     if (interaction.commandName === "compare") {
       const firstUsername = interaction.options.getString("user_one", true).trim().replace(/^@/, "");
       const secondUsername = interaction.options.getString("user_two", true).trim().replace(/^@/, "");
@@ -1166,6 +1260,27 @@ client.on(Events.InteractionCreate, async (interaction) => {
       const ranks = await fetchProfileRanks(profile.username, interaction.guildId);
       await interaction.editReply({
         embeds: [buildRankEmbed(profile, ranks)]
+      });
+      return;
+    }
+
+    if (interaction.commandName === "liststats") {
+      const lookup = await resolveStatsLookup(interaction);
+
+      if (lookup.error) {
+        await interaction.editReply(lookup.error);
+        return;
+      }
+
+      const profile = await fetchAnimeProfile(lookup.username);
+
+      if (!profile) {
+        await interaction.editReply(`No public Anime.com profile was found for \`${lookup.username}\`.`);
+        return;
+      }
+
+      await interaction.editReply({
+        embeds: [buildListStatsEmbed(profile)]
       });
       return;
     }
