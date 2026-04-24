@@ -328,54 +328,8 @@ function buildRecentEmbed(recentInfo) {
 function buildBadgesEmbed(profile, type) {
   const badgeSource = {
     displayed: profile.displayedBadges,
-    earned: profile.earnedBadges,
-    grouped: profile.earnedBadges
+    earned: profile.earnedBadges
   }[type] ?? profile.displayedBadges;
-
-  if (type === "grouped") {
-    const grouped = new Map();
-
-    for (const badge of badgeSource) {
-      const key = badge.badgeFamily ?? badge.key;
-      const current = grouped.get(key);
-
-      if (!current) {
-        grouped.set(key, {
-          name: badge.rawName ?? badge.name ?? badge.key,
-          highestTier: badge.tier ?? null,
-          count: 1
-        });
-        continue;
-      }
-
-      current.count += 1;
-      current.highestTier = Math.max(current.highestTier ?? 0, badge.tier ?? 0) || null;
-    }
-
-    const fields = [...grouped.values()]
-      .sort((left, right) => {
-        const tierDiff = (right.highestTier ?? 0) - (left.highestTier ?? 0);
-        return tierDiff !== 0 ? tierDiff : left.name.localeCompare(right.name);
-      })
-      .slice(0, 15)
-      .map((badge) => ({
-        name: badge.name,
-        value: `Highest tier: ${badge.highestTier ? `T${badge.highestTier}` : "Base"} | Earned: ${badge.count}`,
-        inline: false
-      }));
-
-    return {
-      color: parseColor(profile.accentColor),
-      title: `${profile.name} Badges`,
-      url: profile.profileUrl,
-      description: `Grouped Anime.com badge families for \`@${profile.username}\`.`,
-      thumbnail: profile.avatarUrl ? { url: profile.avatarUrl } : undefined,
-      fields,
-      footer: {
-        text: `${grouped.size} badge family${grouped.size === 1 ? "" : "ies"}`
-      }
-    };
-  }
 
   return {
     color: parseColor(profile.accentColor),
@@ -1649,11 +1603,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
       await recordHistorySnapshot(profile);
       const embed = buildBadgesEmbed(profile, type);
-
-      if (type === "grouped") {
-        await interaction.editReply({ embeds: [embed] });
-        return;
-      }
 
       const strip = await renderBadgeStrip(type === "displayed" ? profile.displayedBadges : profile.earnedBadges);
 

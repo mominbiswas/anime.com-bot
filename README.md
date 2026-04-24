@@ -16,7 +16,7 @@ The bot currently supports:
 - `/serverstats` for server bot-data summary
 - `/liststats` for compact list counts
 - `/recent` for recently updated entries
-- `/badges` for displayed, earned, or grouped badges
+- `/badges` for displayed or earned badges
 - `/listinfo` for public anime list status views
 - `/profile-raw` for the raw public JSON payload
 
