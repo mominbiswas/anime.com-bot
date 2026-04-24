@@ -290,6 +290,17 @@ const commands = [
     new SlashCommandBuilder()
       .setName("badges")
       .setDescription("Show displayed, earned, or grouped Anime.com badges for one user.")
+      .addStringOption((option) =>
+        option
+          .setName("type")
+          .setDescription("Which badges to show")
+          .setRequired(true)
+          .addChoices(
+            { name: "Displayed badges", value: "displayed" },
+            { name: "All earned badges", value: "earned" },
+            { name: "Grouped by family", value: "grouped" }
+          )
+      )
       .addUserOption((option) =>
         option
           .setName("member")
@@ -301,17 +312,6 @@ const commands = [
           .setName("username")
           .setDescription("Anime.com username, with or without @")
           .setRequired(false)
-      )
-      .addStringOption((option) =>
-        option
-          .setName("type")
-          .setDescription("Which badges to show")
-          .setRequired(true)
-          .addChoices(
-            { name: "Displayed badges", value: "displayed" },
-            { name: "All earned badges", value: "earned" },
-            { name: "Grouped by family", value: "grouped" }
-          )
       )
   ).toJSON(),
   applyGlobalAvailability(
