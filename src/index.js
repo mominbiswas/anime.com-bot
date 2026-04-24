@@ -236,8 +236,12 @@ function buildCompareEmbed(leftProfile, rightProfile, leftRanks, rightRanks) {
 
   for (let index = 0; index < rows.length; index += chunkSize) {
     const chunk = rows.slice(index, index + chunkSize);
-    const leftValue = chunk.map(([label, value]) => `**${label}**\n${value}`).join("\n\n");
-    const rightValue = chunk.map(([label, , value]) => `**${label}**\n${value}`).join("\n\n");
+    const leftValue = chunk
+      .map(([label, value]) => `**${label} (${leftLabel})**\n${value}`)
+      .join("\n\n");
+    const rightValue = chunk
+      .map(([label, , value]) => `**${label} (${rightLabel})**\n${value}`)
+      .join("\n\n");
 
     fields.push(
       { name: leftLabel, value: leftValue, inline: true },
