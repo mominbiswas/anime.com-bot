@@ -3,6 +3,12 @@ const PROFILE_URL = "https://www.anime.com/u/";
 import { getBadgeIconUrl, getBadgeImageUrl } from "./badgeAssets.js";
 import { resolveLocalBadgePath } from "./badgeIcons.js";
 
+const CACHE_TTL_MS = Number.parseInt(process.env.ANIME_CACHE_TTL_MS ?? "120000", 10);
+const profileCache = new Map();
+const listCache = new Map();
+const inflightProfileRequests = new Map();
+const inflightListRequests = new Map();
+
 const GET_PUBLIC_USER_PROFILE_QUERY = `
   query GetPublicUserProfile($username: String!) {
     publicUserByUsername(username: $username) {
@@ -109,6 +115,28 @@ function normalizeUsername(username) {
   return username.trim().replace(/^@/, "");
 }
 
+function getValidCacheEntry(cache, key) {
+  const cached = cache.get(key);
+
+  if (!cached) {
+    return null;
+  }
+
+  if (cached.expiresAt <= Date.now()) {
+    cache.delete(key);
+    return null;
+  }
+
+  return cached.value;
+}
+
+function setCacheEntry(cache, key, value) {
+  cache.set(key, {
+    value,
+    expiresAt: Date.now() + CACHE_TTL_MS
+  });
+}
+
 function normalizeBadgeName(badge) {
   if (!badge) {
     return null;
@@ -164,6 +192,19 @@ export function formatDate(value) {
 
 export async function fetchAnimeProfile(username) {
   const safeUsername = normalizeUsername(username);
+  const cachedProfile = getValidCacheEntry(profileCache, safeUsername.toLowerCase());
+
+  if (cachedProfile) {
+    return cachedProfile;
+  }
+
+  const inflightProfile = inflightProfileRequests.get(safeUsername.toLowerCase());
+
+  if (inflightProfile) {
+    return inflightProfile;
+  }
+
+  const request = (async () => {
   const profileData = await fetchAnimeGraphQL({
     operationName: "GetPublicUserProfile",
     variables: {
@@ -213,7 +254,7 @@ export async function fetchAnimeProfile(username) {
     // Keep the public profile visible even if watchlist summary fails.
   }
 
-  return {
+  const result = {
     id: profile.id,
     username: profile.username,
     name: profile.username,
@@ -267,10 +308,38 @@ export async function fetchAnimeProfile(username) {
       localFilePath: resolveLocalBadgePath(badge.key)
     }))
   };
+  setCacheEntry(profileCache, safeUsername.toLowerCase(), result);
+  setCacheEntry(profileCache, profile.username.toLowerCase(), result);
+  return result;
+  })();
+
+  inflightProfileRequests.set(safeUsername.toLowerCase(), request);
+
+  try {
+    return await request;
+  } finally {
+    inflightProfileRequests.delete(safeUsername.toLowerCase());
+  }
 }
 
 export async function fetchAnimeListInfo(username, status) {
-  const profile = await fetchAnimeProfile(username);
+  const safeUsername = normalizeUsername(username);
+  const normalizedStatus = status.toUpperCase();
+  const cacheKey = `${safeUsername.toLowerCase()}:${normalizedStatus}`;
+  const cachedList = getValidCacheEntry(listCache, cacheKey);
+
+  if (cachedList) {
+    return cachedList;
+  }
+
+  const inflightList = inflightListRequests.get(cacheKey);
+
+  if (inflightList) {
+    return inflightList;
+  }
+
+  const request = (async () => {
+  const profile = await fetchAnimeProfile(safeUsername);
 
   if (!profile) {
     return null;
@@ -287,7 +356,6 @@ export async function fetchAnimeListInfo(username, status) {
     allowPartialData: true
   });
 
-  const normalizedStatus = status.toUpperCase();
   const items = (watchlistData?.watchListByUserId?.items ?? [])
     .filter((item) => item.status === normalizedStatus && item.ipTitle)
     .map((item) => ({
@@ -300,11 +368,22 @@ export async function fetchAnimeListInfo(username, status) {
     }))
     .sort((left, right) => (right.updatedAt ?? "").localeCompare(left.updatedAt ?? ""));
 
-  return {
+  const result = {
     username: profile.username,
     profileUrl: profile.profileUrl,
     status: normalizedStatus,
     total: items.length,
     items
   };
+  setCacheEntry(listCache, cacheKey, result);
+  return result;
+  })();
+
+  inflightListRequests.set(cacheKey, request);
+
+  try {
+    return await request;
+  } finally {
+    inflightListRequests.delete(cacheKey);
+  }
 }
