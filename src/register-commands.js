@@ -144,6 +144,28 @@ const commands = [
   ).toJSON(),
   applyGlobalAvailability(
     new SlashCommandBuilder()
+      .setName("history")
+      .setDescription("Show how a user's Anime.com aura and followers changed over time.")
+      .addUserOption((option) =>
+        option
+          .setName("member")
+          .setDescription("Pick a Discord user who already linked their Anime.com account")
+          .setRequired(false)
+      )
+      .addStringOption((option) =>
+        option
+          .setName("username")
+          .setDescription("Anime.com username, with or without @")
+          .setRequired(false)
+      )
+  ).toJSON(),
+  applyGlobalAvailability(
+    new SlashCommandBuilder()
+      .setName("serverstats")
+      .setDescription("Show a server summary of linked, tracked, and top-ranked Anime.com users.")
+  ).toJSON(),
+  applyGlobalAvailability(
+    new SlashCommandBuilder()
       .setName("track")
       .setDescription("Track an Anime.com username for the bot's shared leaderboard.")
       .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)

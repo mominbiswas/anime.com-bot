@@ -8,8 +8,12 @@ The bot currently supports:
 
 - `/stats` for your linked Anime.com profile or another public profile
 - `/rank` for aura/followers leaderboard positions
+- `/history` for aura/follower snapshot history
 - `/compare` for side-by-side public profile comparison
 - `/leaderboard` for ranked linked/tracked users
+- `/topbadges` for badge-count leaderboards
+- `/serverstats` for server bot-data summary
+- `/liststats` for compact list counts
 - `/listinfo` for public anime list status views
 - `/profile-raw` for the raw public JSON payload
 
@@ -73,7 +77,11 @@ In Discord:
 /stats
 /stats username: anfal
 /rank username: anfal
+/history username: anfal
 /compare user_one: anfal user_two: shomik
+/topbadges type: displayed
+/serverstats
+/liststats username: anfal
 /listinfo username: anfal status: COMPLETED
 /profile-raw username: anfal
 ```
@@ -82,5 +90,6 @@ In Discord:
 
 - The bot currently uses the `GetPublicUserProfile` query against `https://www.anime.com/api/graphql`.
 - Anime.com responses are cached briefly in memory. You can change the TTL with `ANIME_CACHE_TTL_MS`.
+- Profile history snapshots are stored locally in `DATA_DIR/profile-history.json` whenever the bot fetches a profile.
 - If Anime.com changes that query or starts blocking bot-like traffic, we may need to add retries, longer caching, or a browser-based fallback.
 - For Railway or other hosts, set `DATA_DIR` to a persistent mounted folder if you want tracked profiles and linked accounts to survive redeploys and restarts.
