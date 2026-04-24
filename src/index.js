@@ -231,17 +231,26 @@ function buildCompareEmbed(leftProfile, rightProfile, leftRanks, rightRanks) {
     ["Completed", formatStatValue(leftProfile.seriesCompleted), formatStatValue(rightProfile.seriesCompleted)],
     ["Avg Rating", formatStatValue(leftProfile.avgSeriesRating), formatStatValue(rightProfile.avgSeriesRating)]
   ];
+  const chunkSize = 4;
+  const fields = [];
+
+  for (let index = 0; index < rows.length; index += chunkSize) {
+    const chunk = rows.slice(index, index + chunkSize);
+    const leftValue = chunk.map(([label, value]) => `**${label}**\n${value}`).join("\n\n");
+    const rightValue = chunk.map(([label, , value]) => `**${label}**\n${value}`).join("\n\n");
+
+    fields.push(
+      { name: leftLabel, value: leftValue, inline: true },
+      { name: rightLabel, value: rightValue, inline: true },
+      { name: "\u200B", value: "\u200B", inline: true }
+    );
+  }
 
   return {
     color: parseColor(leftProfile.accentColor ?? rightProfile.accentColor),
     title: `${leftProfile.name} vs ${rightProfile.name}`,
     description: `Side-by-side Anime.com comparison for \`${leftLabel}\` and \`${rightLabel}\`.`,
-    fields: buildTwoColumnFields(
-      rows.map(([label, leftValue, rightValue]) => ({
-        left: { name: `${label} (${leftLabel})`, value: leftValue },
-        right: { name: `${label} (${rightLabel})`, value: rightValue }
-      }))
-    ),
+    fields,
     footer: {
       text: "Data fetched from Anime.com public GraphQL endpoint"
     }
