@@ -135,6 +135,51 @@ const commands = [
   ).toJSON(),
   applyGlobalAvailability(
     new SlashCommandBuilder()
+      .setName("topsocial")
+      .setDescription("Rank linked and tracked Anime.com users by social stats.")
+      .addStringOption((option) =>
+        option
+          .setName("metric")
+          .setDescription("Which social stat to rank by")
+          .setRequired(true)
+          .addChoices(
+            { name: "Comments", value: "comments" },
+            { name: "Reviews", value: "reviews" },
+            { name: "Lists", value: "lists" }
+          )
+      )
+      .addIntegerOption((option) =>
+        option
+          .setName("limit")
+          .setDescription("How many users to show")
+          .setMinValue(1)
+          .setMaxValue(20)
+      )
+  ).toJSON(),
+  applyGlobalAvailability(
+    new SlashCommandBuilder()
+      .setName("topgrowth")
+      .setDescription("Rank linked and tracked Anime.com users by 7-day growth.")
+      .addStringOption((option) =>
+        option
+          .setName("metric")
+          .setDescription("Which 7-day growth stat to rank by")
+          .setRequired(true)
+          .addChoices(
+            { name: "Aura gain (7d)", value: "aura7d" },
+            { name: "Followers gain (7d)", value: "followers7d" }
+          )
+      )
+      .addIntegerOption((option) =>
+        option
+          .setName("limit")
+          .setDescription("How many users to show")
+          .setMinValue(1)
+          .setMaxValue(20)
+      )
+  ).toJSON(),
+  applyGlobalAvailability(
+    new SlashCommandBuilder()
       .setName("compare")
       .setDescription("Compare two public Anime.com profiles side by side.")
       .addStringOption((option) =>

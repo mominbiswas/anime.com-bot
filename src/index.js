@@ -738,11 +738,16 @@ function formatMetricLabel(metric) {
   return {
     aura: "Aura",
     followers: "Followers",
+    comments: "Comments",
+    reviews: "Reviews",
+    lists: "Lists",
     completed: "Completed",
     watching: "Watching",
     planning: "Planning",
     dropped: "Dropped",
-    avgRating: "Avg Rating"
+    avgRating: "Avg Rating",
+    aura7d: "Aura Gain (7d)",
+    followers7d: "Followers Gain (7d)"
   }[metric] ?? metric;
 }
 
@@ -889,6 +894,47 @@ async function fetchBadgeLeaderboardRows(type, guildId) {
   };
 }
 
+async function fetchGrowthLeaderboardRows(metric, guildId) {
+  const leaderboardProfiles = await fetchLeaderboardProfiles(guildId);
+  const growthMetric = metric === "followers7d" ? "followers" : "aura";
+
+  const rows = (await Promise.all(
+    leaderboardProfiles.rows.map(async (row) => {
+      const snapshots = await getHistorySnapshots(row.username);
+
+      if (!snapshots.length) {
+        return null;
+      }
+
+      const latest = snapshots[snapshots.length - 1];
+      const previous = findSnapshotAtLeastDaysOld(snapshots, 7);
+
+      if (!latest || !previous || latest[growthMetric] == null || previous[growthMetric] == null) {
+        return null;
+      }
+
+      const value = latest[growthMetric] - previous[growthMetric];
+
+      if (value <= 0) {
+        return null;
+      }
+
+      return {
+        discordUserId: row.discordUserId,
+        username: row.username,
+        value
+      };
+    })
+  ))
+    .filter(Boolean)
+    .sort((left, right) => right.value - left.value);
+
+  return {
+    totalUsers: leaderboardProfiles.totalUsers,
+    rows
+  };
+}
+
 async function fetchLeaderboardProfiles(guildId) {
   const linkedProfiles = await getAllLinkedProfiles();
   const forcedUnlinkedUsernames = new Set(await getAllForcedUnlinkedUsernames());
@@ -937,6 +983,9 @@ async function fetchLeaderboardProfiles(guildId) {
         username: profile.username,
         aura: parseMetricValue(profile, "aura"),
         followers: parseMetricValue(profile, "followers"),
+        comments: parseMetricValue(profile, "comments"),
+        reviews: parseMetricValue(profile, "reviews"),
+        lists: parseMetricValue(profile, "lists"),
         completed: parseMetricValue(profile, "seriesCompleted"),
         watching: parseMetricValue(profile, "seriesWatching"),
         planning: parseMetricValue(profile, "seriesPlanning"),
@@ -1193,7 +1242,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     return;
   }
 
-  if (!["profile-raw", "badgeinfo", "badges", "recent", "listinfo", "liststats", "link", "verify", "unlink", "stats", "leaderboard", "topbadges", "toplists", "track", "untrack", "compare", "rank", "history", "serverstats"].includes(interaction.commandName)) {
+  if (!["profile-raw", "badgeinfo", "badges", "recent", "listinfo", "liststats", "link", "verify", "unlink", "stats", "leaderboard", "topbadges", "toplists", "topsocial", "topgrowth", "track", "untrack", "compare", "rank", "history", "serverstats"].includes(interaction.commandName)) {
     return;
   }
 
@@ -1436,6 +1485,58 @@ client.on(Events.InteractionCreate, async (interaction) => {
       if (!leaderboard.rows.length) {
         await interaction.editReply(
           `I couldn't build a ${formatMetricLabel(metric).toLowerCase()} leaderboard from the linked and tracked accounts right now.`
+        );
+        return;
+      }
+
+      await interaction.editReply({
+        embeds: [buildLeaderboardEmbed(metric, leaderboard.rows, leaderboard.totalUsers, 0, perPage)],
+        components: buildLeaderboardComponents(metric, leaderboard.rows, 0, perPage, interaction.guildId)
+      });
+      return;
+    }
+
+    if (interaction.commandName === "topsocial") {
+      const metric = interaction.options.getString("metric", true);
+      const perPage = interaction.options.getInteger("limit") ?? 10;
+      const leaderboard = await fetchLeaderboardRows(metric, interaction.guildId);
+
+      if (!leaderboard.totalUsers) {
+        await interaction.editReply(
+          "There are no linked or tracked Anime.com accounts to rank yet. Use `/link` or have an admin add profiles with `/track` first."
+        );
+        return;
+      }
+
+      if (!leaderboard.rows.length) {
+        await interaction.editReply(
+          `I couldn't build a ${formatMetricLabel(metric).toLowerCase()} leaderboard from the linked and tracked accounts right now.`
+        );
+        return;
+      }
+
+      await interaction.editReply({
+        embeds: [buildLeaderboardEmbed(metric, leaderboard.rows, leaderboard.totalUsers, 0, perPage)],
+        components: buildLeaderboardComponents(metric, leaderboard.rows, 0, perPage, interaction.guildId)
+      });
+      return;
+    }
+
+    if (interaction.commandName === "topgrowth") {
+      const metric = interaction.options.getString("metric", true);
+      const perPage = interaction.options.getInteger("limit") ?? 10;
+      const leaderboard = await fetchGrowthLeaderboardRows(metric, interaction.guildId);
+
+      if (!leaderboard.totalUsers) {
+        await interaction.editReply(
+          "There are no linked or tracked Anime.com accounts to rank yet. Use `/link` or have an admin add profiles with `/track` first."
+        );
+        return;
+      }
+
+      if (!leaderboard.rows.length) {
+        await interaction.editReply(
+          `I couldn't build a ${formatMetricLabel(metric).toLowerCase()} leaderboard yet. More history snapshots are probably needed first.`
         );
         return;
       }

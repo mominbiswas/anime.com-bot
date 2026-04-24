@@ -12,11 +12,13 @@ The bot currently supports:
 - `/compare` for side-by-side public profile comparison
 - `/leaderboard` for ranked linked/tracked users
 - `/toplists` for completed/watching/planning/dropped/avg-rating leaderboards
+- `/topsocial` for comments/reviews/lists leaderboards
+- `/topgrowth` for 7-day aura/follower growth leaderboards
 - `/topbadges` for badge-count leaderboards
 - `/serverstats` for server bot-data summary
 - `/liststats` for compact list counts
 - `/recent` for recently updated entries
-- `/badges` for displayed, earned, or grouped badges
+- `/badges` for displayed or earned badges
 - `/listinfo` for public anime list status views
 - `/profile-raw` for the raw public JSON payload
 
@@ -83,6 +85,8 @@ In Discord:
 /history username: anfal
 /compare user_one: anfal user_two: shomik
 /toplists metric: completed
+/topsocial metric: comments
+/topgrowth metric: aura7d
 /topbadges type: displayed
 /serverstats
 /liststats username: anfal
