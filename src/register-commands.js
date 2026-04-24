@@ -180,6 +180,47 @@ const commands = [
   ).toJSON(),
   applyGlobalAvailability(
     new SlashCommandBuilder()
+      .setName("topreviews")
+      .setDescription("Show top reviewers or avg rating leaders with a minimum list threshold.")
+      .addStringOption((option) =>
+        option
+          .setName("metric")
+          .setDescription("Which review-focused stat to rank by")
+          .setRequired(true)
+          .addChoices(
+            { name: "Top reviewers", value: "reviews" },
+            { name: "Avg rating leaders", value: "avgRating" }
+          )
+      )
+      .addIntegerOption((option) =>
+        option
+          .setName("limit")
+          .setDescription("How many users to show")
+          .setMinValue(1)
+          .setMaxValue(20)
+      )
+      .addIntegerOption((option) =>
+        option
+          .setName("min_lists")
+          .setDescription("Minimum list count for avg rating leaders")
+          .setMinValue(1)
+          .setMaxValue(500)
+      )
+  ).toJSON(),
+  applyGlobalAvailability(
+    new SlashCommandBuilder()
+      .setName("milestones")
+      .setDescription("Show users closest to their next aura and follower milestones.")
+      .addIntegerOption((option) =>
+        option
+          .setName("limit")
+          .setDescription("How many users to show in each milestone list")
+          .setMinValue(1)
+          .setMaxValue(15)
+      )
+  ).toJSON(),
+  applyGlobalAvailability(
+    new SlashCommandBuilder()
       .setName("compare")
       .setDescription("Compare two public Anime.com profiles side by side.")
       .addStringOption((option) =>

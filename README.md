@@ -14,6 +14,8 @@ The bot currently supports:
 - `/toplists` for completed/watching/planning/dropped/avg-rating leaderboards
 - `/topsocial` for comments/reviews/lists leaderboards
 - `/topgrowth` for 7-day aura/follower growth leaderboards
+- `/topreviews` for top reviewers and avg-rating leaders
+- `/milestones` for users nearest to their next aura/follower milestones
 - `/topbadges` for badge-count leaderboards
 - `/serverstats` for server bot-data summary
 - `/liststats` for compact list counts
@@ -87,6 +89,8 @@ In Discord:
 /toplists metric: completed
 /topsocial metric: comments
 /topgrowth metric: aura7d
+/topreviews metric: avgRating min_lists: 10
+/milestones
 /topbadges type: displayed
 /serverstats
 /liststats username: anfal

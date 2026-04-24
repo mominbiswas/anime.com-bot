@@ -751,6 +751,36 @@ function formatMetricLabel(metric) {
   }[metric] ?? metric;
 }
 
+function buildMilestoneStep(value) {
+  if (value < 100) {
+    return 10;
+  }
+
+  if (value < 1000) {
+    return 100;
+  }
+
+  if (value < 5000) {
+    return 500;
+  }
+
+  return 1000;
+}
+
+function getNextMilestone(value) {
+  const step = buildMilestoneStep(value);
+  return Math.ceil((value + 1) / step) * step;
+}
+
+function formatMilestoneLine(row, metricLabel) {
+  const target = getNextMilestone(row.value);
+  const gap = target - row.value;
+
+  return row.discordUserId
+    ? `<@${row.discordUserId}>  |  \`${row.value}\` ${metricLabel.toLowerCase()}  →  \`${target}\`  (${gap} away)  |  \`@${row.username}\``
+    : `\`@${row.username}\`  |  \`${row.value}\` ${metricLabel.toLowerCase()}  →  \`${target}\`  (${gap} away)`;
+}
+
 async function resolveStatsLookup(interaction) {
   const selectedMember = interaction.options.getUser("member");
   const rawValue = interaction.options.getString("username")?.trim();
@@ -877,6 +907,57 @@ async function fetchLeaderboardRows(metric, guildId) {
   };
 }
 
+function buildTopReviewsEmbed(metric, rows, totalUsers, limit, minLists) {
+  const metricLabel = formatMetricLabel(metric);
+  const visibleRows = rows.slice(0, limit);
+  const lines = visibleRows.map((row, index) =>
+    row.discordUserId
+      ? `**${index + 1}.** <@${row.discordUserId}>  |  \`${row.value}\` ${metricLabel.toLowerCase()}  |  \`@${row.username}\``
+      : `**${index + 1}.** \`@${row.username}\`  |  \`${row.value}\` ${metricLabel.toLowerCase()}`
+  );
+
+  return {
+    color: 0xf28482,
+    title: metric === "reviews" ? "Top Reviewers" : "Avg Rating Leaders",
+    description: lines.join("\n"),
+    footer: {
+      text: metric === "avgRating"
+        ? `Showing top ${visibleRows.length} of ${totalUsers} linked and tracked users | Minimum lists: ${minLists}`
+        : `Showing top ${visibleRows.length} of ${totalUsers} linked and tracked users`
+    }
+  };
+}
+
+function buildMilestonesEmbed(auraRows, followerRows, totalUsers, limit) {
+  const auraLines = auraRows
+    .slice(0, limit)
+    .map((row) => formatMilestoneLine(row, "Aura"));
+  const followerLines = followerRows
+    .slice(0, limit)
+    .map((row) => formatMilestoneLine(row, "Followers"));
+
+  return {
+    color: 0x8ecae6,
+    title: "Milestones",
+    description: `Tracked users closest to their next Anime.com aura and follower milestones.`,
+    fields: [
+      {
+        name: "Aura Milestones",
+        value: auraLines.length ? truncate(auraLines.join("\n"), 1024) : "No aura milestone data yet.",
+        inline: false
+      },
+      {
+        name: "Follower Milestones",
+        value: followerLines.length ? truncate(followerLines.join("\n"), 1024) : "No follower milestone data yet.",
+        inline: false
+      }
+    ],
+    footer: {
+      text: `Showing up to ${limit} users per milestone list from ${totalUsers} linked and tracked users`
+    }
+  };
+}
+
 async function fetchBadgeLeaderboardRows(type, guildId) {
   const leaderboardProfiles = await fetchLeaderboardProfiles(guildId);
   const metricKey = type === "earned" ? "earnedBadgeCount" : "displayedBadgeCount";
@@ -932,6 +1013,64 @@ async function fetchGrowthLeaderboardRows(metric, guildId) {
   return {
     totalUsers: leaderboardProfiles.totalUsers,
     rows
+  };
+}
+
+async function fetchTopReviewsRows(metric, guildId, minLists = 10) {
+  const leaderboardProfiles = await fetchLeaderboardProfiles(guildId);
+  let rows = [];
+
+  if (metric === "reviews") {
+    rows = leaderboardProfiles.rows
+      .filter((row) => row.reviews != null)
+      .map((row) => ({
+        discordUserId: row.discordUserId,
+        username: row.username,
+        value: row.reviews
+      }))
+      .sort((left, right) => right.value - left.value);
+  } else {
+    rows = leaderboardProfiles.rows
+      .filter((row) => row.avgRating != null && (row.lists ?? 0) >= minLists)
+      .map((row) => ({
+        discordUserId: row.discordUserId,
+        username: row.username,
+        value: row.avgRating
+      }))
+      .sort((left, right) => right.value - left.value);
+  }
+
+  return {
+    totalUsers: leaderboardProfiles.totalUsers,
+    rows
+  };
+}
+
+async function fetchMilestoneRows(guildId) {
+  const leaderboardProfiles = await fetchLeaderboardProfiles(guildId);
+  const auraRows = leaderboardProfiles.rows
+    .filter((row) => row.aura != null)
+    .map((row) => ({
+      discordUserId: row.discordUserId,
+      username: row.username,
+      value: row.aura,
+      gap: getNextMilestone(row.aura) - row.aura
+    }))
+    .sort((left, right) => left.gap - right.gap || right.value - left.value);
+  const followerRows = leaderboardProfiles.rows
+    .filter((row) => row.followers != null)
+    .map((row) => ({
+      discordUserId: row.discordUserId,
+      username: row.username,
+      value: row.followers,
+      gap: getNextMilestone(row.followers) - row.followers
+    }))
+    .sort((left, right) => left.gap - right.gap || right.value - left.value);
+
+  return {
+    totalUsers: leaderboardProfiles.totalUsers,
+    auraRows,
+    followerRows
   };
 }
 
@@ -1242,7 +1381,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     return;
   }
 
-  if (!["profile-raw", "badgeinfo", "badges", "recent", "listinfo", "liststats", "link", "verify", "unlink", "stats", "leaderboard", "topbadges", "toplists", "topsocial", "topgrowth", "track", "untrack", "compare", "rank", "history", "serverstats"].includes(interaction.commandName)) {
+  if (!["profile-raw", "badgeinfo", "badges", "recent", "listinfo", "liststats", "link", "verify", "unlink", "stats", "leaderboard", "topbadges", "toplists", "topsocial", "topgrowth", "topreviews", "milestones", "track", "untrack", "compare", "rank", "history", "serverstats"].includes(interaction.commandName)) {
     return;
   }
 
@@ -1544,6 +1683,58 @@ client.on(Events.InteractionCreate, async (interaction) => {
       await interaction.editReply({
         embeds: [buildLeaderboardEmbed(metric, leaderboard.rows, leaderboard.totalUsers, 0, perPage)],
         components: buildLeaderboardComponents(metric, leaderboard.rows, 0, perPage, interaction.guildId)
+      });
+      return;
+    }
+
+    if (interaction.commandName === "topreviews") {
+      const metric = interaction.options.getString("metric", true);
+      const limit = interaction.options.getInteger("limit") ?? 10;
+      const minLists = interaction.options.getInteger("min_lists") ?? 10;
+      const leaderboard = await fetchTopReviewsRows(metric, interaction.guildId, minLists);
+
+      if (!leaderboard.totalUsers) {
+        await interaction.editReply(
+          "There are no linked or tracked Anime.com accounts to rank yet. Use `/link` or have an admin add profiles with `/track` first."
+        );
+        return;
+      }
+
+      if (!leaderboard.rows.length) {
+        await interaction.editReply(
+          metric === "avgRating"
+            ? `I couldn't build an avg rating leaderboard yet. Try lowering the minimum lists threshold from ${minLists}.`
+            : "I couldn't build a reviews leaderboard from the linked and tracked accounts right now."
+        );
+        return;
+      }
+
+      await interaction.editReply({
+        embeds: [buildTopReviewsEmbed(metric, leaderboard.rows, leaderboard.totalUsers, limit, minLists)]
+      });
+      return;
+    }
+
+    if (interaction.commandName === "milestones") {
+      const limit = interaction.options.getInteger("limit") ?? 10;
+      const milestones = await fetchMilestoneRows(interaction.guildId);
+
+      if (!milestones.totalUsers) {
+        await interaction.editReply(
+          "There are no linked or tracked Anime.com accounts to analyze yet. Use `/link` or have an admin add profiles with `/track` first."
+        );
+        return;
+      }
+
+      if (!milestones.auraRows.length && !milestones.followerRows.length) {
+        await interaction.editReply(
+          "I couldn't build milestone lists from the linked and tracked accounts right now."
+        );
+        return;
+      }
+
+      await interaction.editReply({
+        embeds: [buildMilestonesEmbed(milestones.auraRows, milestones.followerRows, milestones.totalUsers, limit)]
       });
       return;
     }
