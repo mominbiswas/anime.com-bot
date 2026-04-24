@@ -38,26 +38,6 @@ const commands = [
     )
     .toJSON(),
   new SlashCommandBuilder()
-    .setName("character")
-    .setDescription("Capture the visible Anime.com character/model from a public profile.")
-    .addStringOption((option) =>
-      option
-        .setName("username")
-        .setDescription("Anime.com username, with or without @")
-        .setRequired(true)
-    )
-    .toJSON(),
-  new SlashCommandBuilder()
-    .setName("charactergif")
-    .setDescription("Capture a short animated GIF of the visible Anime.com character/model.")
-    .addStringOption((option) =>
-      option
-        .setName("username")
-        .setDescription("Anime.com username, with or without @")
-        .setRequired(true)
-    )
-    .toJSON(),
-  new SlashCommandBuilder()
     .setName("leaderboard")
     .setDescription("Rank linked and tracked Anime.com users by a stat.")
     .addStringOption((option) =>
