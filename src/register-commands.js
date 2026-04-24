@@ -289,7 +289,7 @@ const commands = [
   applyGlobalAvailability(
     new SlashCommandBuilder()
       .setName("badges")
-      .setDescription("Show displayed, earned, or grouped Anime.com badges for one user.")
+      .setDescription("Show displayed or earned Anime.com badges for one user.")
       .addStringOption((option) =>
         option
           .setName("type")
@@ -297,8 +297,7 @@ const commands = [
           .setRequired(true)
           .addChoices(
             { name: "Displayed badges", value: "displayed" },
-            { name: "All earned badges", value: "earned" },
-            { name: "Grouped by family", value: "grouped" }
+            { name: "All earned badges", value: "earned" }
           )
       )
       .addUserOption((option) =>
