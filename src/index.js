@@ -328,63 +328,8 @@ function buildRecentEmbed(recentInfo) {
 function buildBadgesEmbed(profile, type) {
   const badgeSource = {
     displayed: profile.displayedBadges,
-    earned: profile.earnedBadges,
-    grouped: profile.earnedBadges
+    earned: profile.earnedBadges
   }[type] ?? profile.displayedBadges;
-
-  if (type === "grouped") {
-    const grouped = new Map();
-
-    for (const badge of badgeSource) {
-      const key = badge.badgeFamily ?? badge.key;
-      const current = grouped.get(key);
-
-      if (!current) {
-        grouped.set(key, {
-          name: badge.rawName ?? badge.name ?? badge.key,
-          highestBadge: badge,
-          highestTier: badge.tier ?? null,
-          count: 1
-        });
-        continue;
-      }
-
-      current.count += 1;
-      const nextTier = badge.tier ?? 0;
-      const currentTier = current.highestTier ?? 0;
-
-      if (nextTier > currentTier) {
-        current.highestTier = badge.tier ?? null;
-        current.highestBadge = badge;
-      }
-    }
-
-    const groupedEntries = [...grouped.values()]
-      .sort((left, right) => {
-        const tierDiff = (right.highestTier ?? 0) - (left.highestTier ?? 0);
-        return tierDiff !== 0 ? tierDiff : left.name.localeCompare(right.name);
-      });
-    const fields = groupedEntries
-      .slice(0, 15)
-      .map((badge) => ({
-        name: badge.name,
-        value: `Highest badge: ${badge.highestBadge?.name ?? (badge.highestTier ? `T${badge.highestTier}` : "Base")} | Earned: ${badge.count}`,
-        inline: false
-      }));
-
-    return {
-      groupedBadges: groupedEntries.map((entry) => entry.highestBadge).filter(Boolean),
-      color: parseColor(profile.accentColor),
-      title: `${profile.name} Badges`,
-      url: profile.profileUrl,
-      description: `Grouped Anime.com badge families for \`@${profile.username}\`.`,
-      thumbnail: profile.avatarUrl ? { url: profile.avatarUrl } : undefined,
-      fields,
-      footer: {
-        text: `${grouped.size} badge family${grouped.size === 1 ? "" : "ies"}`
-      }
-    };
-  }
 
   return {
     color: parseColor(profile.accentColor),
@@ -1658,22 +1603,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
       await recordHistorySnapshot(profile);
       const embed = buildBadgesEmbed(profile, type);
-
-      if (type === "grouped") {
-        const strip = await renderBadgeStrip(embed.groupedBadges ?? []);
-
-        if (strip) {
-          embed.image = { url: "attachment://badges.png" };
-          await interaction.editReply({
-            embeds: [embed],
-            files: [new AttachmentBuilder(strip, { name: "badges.png" })]
-          });
-          return;
-        }
-
-        await interaction.editReply({ embeds: [embed] });
-        return;
-      }
 
       const strip = await renderBadgeStrip(type === "displayed" ? profile.displayedBadges : profile.earnedBadges);
 
