@@ -342,6 +342,7 @@ function buildBadgesEmbed(profile, type) {
       if (!current) {
         grouped.set(key, {
           name: badge.rawName ?? badge.name ?? badge.key,
+          highestBadge: badge,
           highestTier: badge.tier ?? null,
           count: 1
         });
@@ -349,22 +350,30 @@ function buildBadgesEmbed(profile, type) {
       }
 
       current.count += 1;
-      current.highestTier = Math.max(current.highestTier ?? 0, badge.tier ?? 0) || null;
+      const nextTier = badge.tier ?? 0;
+      const currentTier = current.highestTier ?? 0;
+
+      if (nextTier > currentTier) {
+        current.highestTier = badge.tier ?? null;
+        current.highestBadge = badge;
+      }
     }
 
-    const fields = [...grouped.values()]
+    const groupedEntries = [...grouped.values()]
       .sort((left, right) => {
         const tierDiff = (right.highestTier ?? 0) - (left.highestTier ?? 0);
         return tierDiff !== 0 ? tierDiff : left.name.localeCompare(right.name);
-      })
+      });
+    const fields = groupedEntries
       .slice(0, 15)
       .map((badge) => ({
         name: badge.name,
-        value: `Highest tier: ${badge.highestTier ? `T${badge.highestTier}` : "Base"} | Earned: ${badge.count}`,
+        value: `Highest badge: ${badge.highestBadge?.name ?? (badge.highestTier ? `T${badge.highestTier}` : "Base")} | Earned: ${badge.count}`,
         inline: false
       }));
 
     return {
+      groupedBadges: groupedEntries.map((entry) => entry.highestBadge).filter(Boolean),
       color: parseColor(profile.accentColor),
       title: `${profile.name} Badges`,
       url: profile.profileUrl,
@@ -1651,6 +1660,17 @@ client.on(Events.InteractionCreate, async (interaction) => {
       const embed = buildBadgesEmbed(profile, type);
 
       if (type === "grouped") {
+        const strip = await renderBadgeStrip(embed.groupedBadges ?? []);
+
+        if (strip) {
+          embed.image = { url: "attachment://badges.png" };
+          await interaction.editReply({
+            embeds: [embed],
+            files: [new AttachmentBuilder(strip, { name: "badges.png" })]
+          });
+          return;
+        }
+
         await interaction.editReply({ embeds: [embed] });
         return;
       }
