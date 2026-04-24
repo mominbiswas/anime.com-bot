@@ -44,7 +44,6 @@ npm install
 ```env
 DISCORD_TOKEN=your_bot_token_here
 DISCORD_CLIENT_ID=your_application_client_id_here
-REGISTER_MODE=guild
 DISCORD_GUILD_ID=optional_test_server_id_here
 DISCORD_GUILD_IDS=optional_comma_separated_test_server_ids
 DATA_DIR=optional_persistent_data_directory
@@ -57,14 +56,8 @@ ANIME_CACHE_TTL_MS=120000
 npm run register
 ```
 
-Registration modes:
-
-- `REGISTER_MODE=guild`
-  Use test-server registration. Commands register only to `DISCORD_GUILD_ID` / `DISCORD_GUILD_IDS` and appear quickly.
-- `REGISTER_MODE=global`
-  Use public/global registration. Commands register globally, support broader install contexts, and can take longer to appear.
-
-Using only one mode at a time avoids duplicate commands.
+If `DISCORD_GUILD_ID` is set, the command is registered to that server immediately for testing. If it is omitted, the command is registered globally and can take a bit longer to appear.
+If `DISCORD_GUILD_IDS` is set, commands are registered to each of those guilds.
 
 5. Start the bot:
 
