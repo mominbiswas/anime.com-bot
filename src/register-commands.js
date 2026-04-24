@@ -88,6 +88,28 @@ const commands = [
   ).toJSON(),
   applyGlobalAvailability(
     new SlashCommandBuilder()
+      .setName("topbadges")
+      .setDescription("Rank linked and tracked Anime.com users by badge count.")
+      .addStringOption((option) =>
+        option
+          .setName("type")
+          .setDescription("Which badge count to rank by")
+          .setRequired(true)
+          .addChoices(
+            { name: "Displayed badges", value: "displayed" },
+            { name: "All earned badges", value: "earned" }
+          )
+      )
+      .addIntegerOption((option) =>
+        option
+          .setName("limit")
+          .setDescription("How many users to show")
+          .setMinValue(1)
+          .setMaxValue(20)
+      )
+  ).toJSON(),
+  applyGlobalAvailability(
+    new SlashCommandBuilder()
       .setName("compare")
       .setDescription("Compare two public Anime.com profiles side by side.")
       .addStringOption((option) =>
@@ -174,6 +196,23 @@ const commands = [
           .setName("username")
           .setDescription("Anime.com username, with or without @")
           .setRequired(true)
+      )
+  ).toJSON(),
+  applyGlobalAvailability(
+    new SlashCommandBuilder()
+      .setName("liststats")
+      .setDescription("Show compact Anime.com list counts for one user.")
+      .addUserOption((option) =>
+        option
+          .setName("member")
+          .setDescription("Pick a Discord user who already linked their Anime.com account")
+          .setRequired(false)
+      )
+      .addStringOption((option) =>
+        option
+          .setName("username")
+          .setDescription("Anime.com username, with or without @")
+          .setRequired(false)
       )
   ).toJSON(),
   applyGlobalAvailability(
