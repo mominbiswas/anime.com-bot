@@ -14,18 +14,6 @@ import {
 const MAX_LINKED_ITEMS_PER_RUN = 5;
 const FEED_TYPE_KEYS = ["reviews", "discussions", "episodeDiscussions", "memes", "polls", "news"];
 
-function truncate(value, maxLength = 350) {
-  if (!value) {
-    return value;
-  }
-
-  if (value.length <= maxLength) {
-    return value;
-  }
-
-  return `${value.slice(0, maxLength - 3)}...`;
-}
-
 function parseColorByType(sourceType) {
   if (sourceType === "REVIEW") {
     return 0xf28482;
@@ -77,6 +65,12 @@ function buildActivityEmbed(item, contextLabel = null) {
     }
   ];
 
+  fields.push({
+    name: "Link",
+    value: `[Open Post](${item.url})`,
+    inline: false
+  });
+
   if (item.showTitle) {
     fields.push({
       name: "Show",
@@ -85,17 +79,8 @@ function buildActivityEmbed(item, contextLabel = null) {
     });
   }
 
-  if (contextLabel) {
-    fields.push({
-      name: "Feed",
-      value: contextLabel,
-      inline: false
-    });
-  }
-
   return {
     color: parseColorByType(item.sourceType),
-    description: truncate(item.summary ?? "No summary available."),
     fields
   };
 }

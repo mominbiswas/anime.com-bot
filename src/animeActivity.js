@@ -160,7 +160,7 @@ function buildContentUrl(item) {
     return `${SITE_URL}/reviews/${item.sourceId ?? item.id}`;
   }
 
-  return `${SITE_URL}/post/${item.sourceId ?? item.id}`;
+  return `${SITE_URL}/post/${item.id}`;
 }
 
 function getPrimaryAssociatedTitle(item) {
