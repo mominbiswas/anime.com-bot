@@ -17,6 +17,10 @@ The bot currently supports:
 - `/topreviews` for top reviewers and avg-rating leaders
 - `/milestones` for users nearest to their next aura/follower milestones
 - `/discoverusers` for public username discovery from show pages and review feeds
+- `/activityfeed` to auto-post trending reviews, discussions, and linked-user posts
+- `/activityfeed-status` to inspect current feed settings
+- `/activityfeed-disable` to stop automatic feed posts
+- `/activityfeed-run` to trigger one manual feed pass
 - `/topbadges` for badge-count leaderboards
 - `/serverstats` for server bot-data summary
 - `/liststats` for compact list counts
@@ -60,6 +64,7 @@ DISCORD_GUILD_ID=optional_test_server_id_here
 DISCORD_GUILD_IDS=optional_comma_separated_test_server_ids
 DATA_DIR=optional_persistent_data_directory
 ANIME_CACHE_TTL_MS=120000
+ACTIVITY_FEED_INTERVAL_MS=7200000
 ```
 
 4. Register the slash command:
@@ -93,6 +98,9 @@ In Discord:
 /topreviews metric: avgRating min_lists: 10
 /milestones
 /discoverusers show: naruto source: all
+/activityfeed channel:#anime-feed reviews:true discussions:true linked_users:true
+/activityfeed-status
+/activityfeed-run
 /topbadges type: displayed
 /serverstats
 /liststats username: anfal
@@ -105,6 +113,8 @@ In Discord:
 ## Notes
 
 - The bot currently uses Anime.com's public GraphQL endpoint at `https://www.anime.com/api/graphql` for profiles and review-backed username discovery.
+- Activity feeds are stored locally in `DATA_DIR/activity-feeds.json` and dedupe previously posted items per server.
+- The activity feed loop defaults to every 2 hours. You can override that with `ACTIVITY_FEED_INTERVAL_MS`.
 - Anime.com responses are cached briefly in memory. You can change the TTL with `ANIME_CACHE_TTL_MS`.
 - Profile history snapshots are stored locally in `DATA_DIR/profile-history.json` whenever the bot fetches a profile.
 - If Anime.com changes that query or starts blocking bot-like traffic, we may need to add retries, longer caching, or a browser-based fallback.

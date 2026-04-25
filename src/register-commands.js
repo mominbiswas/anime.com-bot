@@ -305,6 +305,53 @@ const commands = [
   ).toJSON(),
   applyGlobalAvailability(
     new SlashCommandBuilder()
+      .setName("activityfeed")
+      .setDescription("Configure automatic Anime.com activity posts for this server.")
+      .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
+      .addChannelOption((option) =>
+        option
+          .setName("channel")
+          .setDescription("The channel where the bot should post feed updates")
+          .setRequired(true)
+      )
+      .addBooleanOption((option) =>
+        option
+          .setName("reviews")
+          .setDescription("Post trending public reviews")
+          .setRequired(false)
+      )
+      .addBooleanOption((option) =>
+        option
+          .setName("discussions")
+          .setDescription("Post trending public discussions")
+          .setRequired(false)
+      )
+      .addBooleanOption((option) =>
+        option
+          .setName("linked_users")
+          .setDescription("Post new review/discussion posts from linked users")
+          .setRequired(false)
+      )
+  ).toJSON(),
+  applyGlobalAvailability(
+    new SlashCommandBuilder()
+      .setName("activityfeed-status")
+      .setDescription("Show the current Anime.com activity feed settings for this server.")
+  ).toJSON(),
+  applyGlobalAvailability(
+    new SlashCommandBuilder()
+      .setName("activityfeed-disable")
+      .setDescription("Disable automatic Anime.com activity posts for this server.")
+      .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
+  ).toJSON(),
+  applyGlobalAvailability(
+    new SlashCommandBuilder()
+      .setName("activityfeed-run")
+      .setDescription("Run the Anime.com activity feed once right now for this server.")
+      .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
+  ).toJSON(),
+  applyGlobalAvailability(
+    new SlashCommandBuilder()
       .setName("track")
       .setDescription("Track an Anime.com username for the bot's shared leaderboard.")
       .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
