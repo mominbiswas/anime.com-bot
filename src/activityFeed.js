@@ -46,42 +46,31 @@ function formatSourceTypeLabel(sourceType) {
   }[sourceType] ?? sourceType;
 }
 
-function buildActivityEmbed(item, contextLabel = null) {
-  const fields = [
-    {
-      name: "Type",
-      value: formatSourceTypeLabel(item.sourceType),
-      inline: true
-    },
-    {
-      name: "Author",
-      value: item.authorName ? `\`@${item.authorName}\`` : "Unknown",
-      inline: true
-    },
-    {
-      name: "Reactions",
-      value: `${item.reactionCount}`,
-      inline: true
-    }
-  ];
-
-  fields.push({
-    name: "Link",
-    value: `[Open Post](${item.url})`,
-    inline: false
-  });
-
-  if (item.showTitle) {
-    fields.push({
-      name: "Show",
-      value: item.showTitle,
-      inline: false
-    });
-  }
-
+function buildActivityEmbed(item) {
   return {
     color: parseColorByType(item.sourceType),
-    fields
+    fields: [
+      {
+        name: "Type",
+        value: formatSourceTypeLabel(item.sourceType),
+        inline: true
+      },
+      {
+        name: "Author",
+        value: item.authorName ? `\`@${item.authorName}\`` : "Unknown",
+        inline: true
+      },
+      {
+        name: "Reactions",
+        value: `${item.reactionCount}`,
+        inline: true
+      },
+      {
+        name: "Link",
+        value: `[Open Post](${item.url})`,
+        inline: false
+      }
+    ]
   };
 }
 
@@ -223,7 +212,7 @@ export async function runActivityFeedPass(client, guildId = null) {
       if (candidate) {
         await channel.send({
           content: candidate.url,
-          embeds: [buildActivityEmbed(candidate, `Trending ${ACTIVITY_SOURCE_CONFIG[typeKey]?.label?.toLowerCase() ?? "post"}`)]
+          embeds: [buildActivityEmbed(candidate)]
         });
         postedKeys.push(candidate.key);
         seenItems.add(candidate.key);
@@ -239,12 +228,7 @@ export async function runActivityFeedPass(client, guildId = null) {
       for (const item of linkedItems) {
         await channel.send({
           content: `${item.linkedDiscordUserId ? `New Anime.com activity from <@${item.linkedDiscordUserId}>\n` : ""}${item.url}`,
-          embeds: [
-            buildActivityEmbed(
-              item,
-              item.linkedUsername ? `Linked user \`@${item.linkedUsername}\`` : "Linked user activity"
-            )
-          ]
+          embeds: [buildActivityEmbed(item)]
         });
 
         postedKeys.push(item.key);
