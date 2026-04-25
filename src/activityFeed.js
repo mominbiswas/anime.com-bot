@@ -64,11 +64,6 @@ function buildActivityEmbed(item) {
         name: "Reactions",
         value: `${item.reactionCount}`,
         inline: true
-      },
-      {
-        name: "Link",
-        value: item.url,
-        inline: false
       }
     ]
   };
