@@ -50,7 +50,11 @@ function formatSourceTypeLabel(sourceType) {
   return {
     REVIEW: "Review",
     DISCUSSION: "Episode Discussion",
-    GENERAL_DISCUSSION: "Discussion"
+    GENERAL_DISCUSSION: "Discussion",
+    MEME: "Meme",
+    POLL: "Poll",
+    INTERNAL: "News",
+    INTERNAL_EVENT: "Event"
   }[sourceType] ?? sourceType;
 }
 
