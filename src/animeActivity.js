@@ -2,6 +2,33 @@ const GRAPHQL_URL = "https://www.anime.com/api/graphql";
 const SITE_URL = "https://www.anime.com";
 const DEFAULT_PAGE_SIZE = 10;
 
+export const ACTIVITY_SOURCE_CONFIG = {
+  reviews: {
+    sourceTypes: ["REVIEW"],
+    label: "Review"
+  },
+  discussions: {
+    sourceTypes: ["GENERAL_DISCUSSION"],
+    label: "Discussion"
+  },
+  episodeDiscussions: {
+    sourceTypes: ["DISCUSSION"],
+    label: "Episode Discussion"
+  },
+  memes: {
+    sourceTypes: ["MEME"],
+    label: "Meme"
+  },
+  polls: {
+    sourceTypes: ["POLL"],
+    label: "Poll"
+  },
+  news: {
+    sourceTypes: ["INTERNAL"],
+    label: "News"
+  }
+};
+
 const GET_PUBLIC_CONTENT_EMBEDDINGS_QUERY = `
   query GetPublicContentEmbeddings(
     $languageCode: String!
@@ -188,30 +215,32 @@ async function fetchPublicContentItems(filter, limit = DEFAULT_PAGE_SIZE) {
     .map(normalizeContentItem);
 }
 
-export async function fetchTrendingReviewCandidates(limit = DEFAULT_PAGE_SIZE) {
+export async function fetchTrendingCandidatesByType(typeKey, limit = DEFAULT_PAGE_SIZE) {
+  const sourceConfig = ACTIVITY_SOURCE_CONFIG[typeKey];
+
+  if (!sourceConfig) {
+    return [];
+  }
+
   const items = await fetchPublicContentItems({
-    sourceTypes: ["REVIEW"]
+    sourceTypes: sourceConfig.sourceTypes
   }, limit);
 
   return sortTrending(items);
 }
 
-export async function fetchTrendingDiscussionCandidates(limit = DEFAULT_PAGE_SIZE) {
-  const items = await fetchPublicContentItems({
-    discussionsOnly: true
-  }, limit);
+export async function fetchLinkedUserContentCandidates(userId, sourceTypes, limit = DEFAULT_PAGE_SIZE) {
+  const requestedTypes = Array.isArray(sourceTypes) && sourceTypes.length
+    ? [...new Set(sourceTypes)]
+    : ["REVIEW", "GENERAL_DISCUSSION", "DISCUSSION", "MEME", "POLL"];
 
-  return sortTrending(items);
-}
-
-export async function fetchLinkedUserContentCandidates(userId, limit = DEFAULT_PAGE_SIZE) {
   const payload = await fetchAnimeGraphQL({
     operationName: "GetUserPostsPublic",
     query: GET_PUBLIC_USER_POSTS_QUERY,
     variables: {
       userId,
       pagination: { first: limit },
-      sourceTypes: ["REVIEW", "DISCUSSION", "GENERAL_DISCUSSION"]
+      sourceTypes: requestedTypes
     }
   });
 
