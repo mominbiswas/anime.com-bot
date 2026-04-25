@@ -364,6 +364,79 @@ const commands = [
   ).toJSON(),
   applyGlobalAvailability(
     new SlashCommandBuilder()
+      .setName("activityfeed-settings")
+      .setDescription("View or update per-type Anime.com activity feed filters for this server.")
+      .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
+      .addSubcommand((subcommand) =>
+        subcommand
+          .setName("view")
+          .setDescription("Show the current per-type feed filters")
+      )
+      .addSubcommand((subcommand) =>
+        subcommand
+          .setName("set")
+          .setDescription("Update the filter values for one feed type")
+          .addStringOption((option) =>
+            option
+              .setName("type")
+              .setDescription("Which feed type to update")
+              .setRequired(true)
+              .addChoices(
+                { name: "Reviews", value: "reviews" },
+                { name: "Discussions", value: "discussions" },
+                { name: "Ep Discussions", value: "episodeDiscussions" },
+                { name: "Memes", value: "memes" },
+                { name: "Polls", value: "polls" },
+                { name: "News", value: "news" }
+              )
+          )
+          .addIntegerOption((option) =>
+            option
+              .setName("max_age_days")
+              .setDescription("Skip items older than this many days")
+              .setRequired(false)
+              .setMinValue(1)
+              .setMaxValue(30)
+          )
+          .addIntegerOption((option) =>
+            option
+              .setName("min_reactions")
+              .setDescription("Require at least this many reactions")
+              .setRequired(false)
+              .setMinValue(0)
+              .setMaxValue(10000)
+          )
+          .addIntegerOption((option) =>
+            option
+              .setName("max_posts_per_run")
+              .setDescription("Allow up to this many posts from this type per feed run")
+              .setRequired(false)
+              .setMinValue(1)
+              .setMaxValue(10)
+          )
+      )
+      .addSubcommand((subcommand) =>
+        subcommand
+          .setName("reset")
+          .setDescription("Reset one feed type back to the default filter values")
+          .addStringOption((option) =>
+            option
+              .setName("type")
+              .setDescription("Which feed type to reset")
+              .setRequired(true)
+              .addChoices(
+                { name: "Reviews", value: "reviews" },
+                { name: "Discussions", value: "discussions" },
+                { name: "Ep Discussions", value: "episodeDiscussions" },
+                { name: "Memes", value: "memes" },
+                { name: "Polls", value: "polls" },
+                { name: "News", value: "news" }
+              )
+          )
+      )
+  ).toJSON(),
+  applyGlobalAvailability(
+    new SlashCommandBuilder()
       .setName("activityfeed-disable")
       .setDescription("Disable automatic Anime.com activity posts for this server.")
       .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)

@@ -5,6 +5,20 @@ import { getDataDir } from "./dataDir.js";
 const DATA_DIR = getDataDir();
 const STORE_FILE = path.join(DATA_DIR, "activity-feeds.json");
 const MAX_SEEN_ITEMS = 200;
+export const ACTIVITY_FEED_TYPE_KEYS = [
+  "reviews",
+  "discussions",
+  "episodeDiscussions",
+  "memes",
+  "polls",
+  "news"
+];
+
+const DEFAULT_TYPE_SETTING = Object.freeze({
+  maxAgeDays: 2,
+  minReactions: 0,
+  maxPostsPerRun: 1
+});
 
 async function ensureStore() {
   await fs.mkdir(DATA_DIR, { recursive: true });
@@ -33,6 +47,20 @@ function normalizeSeenItems(values) {
   return normalized.slice(-MAX_SEEN_ITEMS);
 }
 
+function normalizeTypeSetting(value) {
+  return {
+    maxAgeDays: Number.isInteger(value?.maxAgeDays) && value.maxAgeDays > 0 ? value.maxAgeDays : DEFAULT_TYPE_SETTING.maxAgeDays,
+    minReactions: Number.isInteger(value?.minReactions) && value.minReactions >= 0 ? value.minReactions : DEFAULT_TYPE_SETTING.minReactions,
+    maxPostsPerRun: Number.isInteger(value?.maxPostsPerRun) && value.maxPostsPerRun > 0 ? value.maxPostsPerRun : DEFAULT_TYPE_SETTING.maxPostsPerRun
+  };
+}
+
+function normalizeTypeSettings(values) {
+  return Object.fromEntries(
+    ACTIVITY_FEED_TYPE_KEYS.map((key) => [key, normalizeTypeSetting(values?.[key])])
+  );
+}
+
 function normalizeGuildConfig(config) {
   if (!config || typeof config !== "object") {
     return null;
@@ -51,6 +79,7 @@ function normalizeGuildConfig(config) {
     polls: config.polls === true,
     news: config.news === true,
     linkedUsers: config.linkedUsers !== false,
+    typeSettings: normalizeTypeSettings(config.typeSettings),
     seenItems: normalizeSeenItems(config.seenItems)
   };
 }
@@ -97,11 +126,20 @@ export async function getAllActivityFeedConfigs() {
 
 export async function setActivityFeedConfig(guildId, config) {
   const store = await readStore();
-  const existing = store.guilds[guildId] ?? { seenItems: [] };
+  const existing = store.guilds[guildId] ?? {
+    seenItems: [],
+    typeSettings: normalizeTypeSettings()
+  };
 
   store.guilds[guildId] = normalizeGuildConfig({
     ...existing,
     ...config,
+    typeSettings: config.typeSettings
+      ? {
+          ...existing.typeSettings,
+          ...config.typeSettings
+        }
+      : existing.typeSettings,
     seenItems: config.seenItems ?? existing.seenItems
   });
 
@@ -132,4 +170,8 @@ export async function markActivityFeedItemsSeen(guildId, itemKeys) {
 
   await writeStore(store);
   return store.guilds[guildId];
+}
+
+export function buildDefaultActivityTypeSettings() {
+  return normalizeTypeSettings();
 }
