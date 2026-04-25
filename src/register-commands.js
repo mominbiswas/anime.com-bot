@@ -323,7 +323,31 @@ const commands = [
       .addBooleanOption((option) =>
         option
           .setName("discussions")
-          .setDescription("Post trending public discussions")
+          .setDescription("Post trending public general discussions")
+          .setRequired(false)
+      )
+      .addBooleanOption((option) =>
+        option
+          .setName("episode_discussions")
+          .setDescription("Post trending episode discussion threads")
+          .setRequired(false)
+      )
+      .addBooleanOption((option) =>
+        option
+          .setName("memes")
+          .setDescription("Post trending public memes")
+          .setRequired(false)
+      )
+      .addBooleanOption((option) =>
+        option
+          .setName("polls")
+          .setDescription("Post trending public polls")
+          .setRequired(false)
+      )
+      .addBooleanOption((option) =>
+        option
+          .setName("news")
+          .setDescription("Post Anime.com news items")
           .setRequired(false)
       )
       .addBooleanOption((option) =>

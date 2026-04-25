@@ -46,6 +46,10 @@ function normalizeGuildConfig(config) {
     channelId: config.channelId,
     reviews: config.reviews !== false,
     discussions: config.discussions !== false,
+    episodeDiscussions: config.episodeDiscussions === true,
+    memes: config.memes === true,
+    polls: config.polls === true,
+    news: config.news === true,
     linkedUsers: config.linkedUsers !== false,
     seenItems: normalizeSeenItems(config.seenItems)
   };

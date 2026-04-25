@@ -1460,6 +1460,10 @@ client.on(Events.InteractionCreate, async (interaction) => {
         channelId: channel.id,
         reviews: interaction.options.getBoolean("reviews") ?? true,
         discussions: interaction.options.getBoolean("discussions") ?? true,
+        episodeDiscussions: interaction.options.getBoolean("episode_discussions") ?? false,
+        memes: interaction.options.getBoolean("memes") ?? false,
+        polls: interaction.options.getBoolean("polls") ?? false,
+        news: interaction.options.getBoolean("news") ?? false,
         linkedUsers: interaction.options.getBoolean("linked_users") ?? true
       });
 

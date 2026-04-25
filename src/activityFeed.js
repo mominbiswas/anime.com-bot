@@ -1,9 +1,9 @@
 import { getAllLinkedProfiles } from "./profileLinks.js";
 import { fetchAnimeProfile } from "./animeProfile.js";
 import {
+  ACTIVITY_SOURCE_CONFIG,
   fetchLinkedUserContentCandidates,
-  fetchTrendingDiscussionCandidates,
-  fetchTrendingReviewCandidates
+  fetchTrendingCandidatesByType
 } from "./animeActivity.js";
 import {
   getActivityFeedConfig,
@@ -12,6 +12,7 @@ import {
 } from "./activityFeedStore.js";
 
 const MAX_LINKED_ITEMS_PER_RUN = 5;
+const FEED_TYPE_KEYS = ["reviews", "discussions", "episodeDiscussions", "memes", "polls", "news"];
 
 function truncate(value, maxLength = 350) {
   if (!value) {
@@ -30,6 +31,18 @@ function parseColorByType(sourceType) {
     return 0xf28482;
   }
 
+  if (sourceType === "MEME") {
+    return 0xf4d35e;
+  }
+
+  if (sourceType === "POLL") {
+    return 0x90be6d;
+  }
+
+  if (sourceType === "INTERNAL") {
+    return 0xcdb4db;
+  }
+
   return 0x6bd6ff;
 }
 
@@ -42,42 +55,68 @@ function formatSourceTypeLabel(sourceType) {
 }
 
 function buildActivityEmbed(item, contextLabel = null) {
-  const titleParts = [formatSourceTypeLabel(item.sourceType)];
+  const fields = [
+    {
+      name: "Type",
+      value: formatSourceTypeLabel(item.sourceType),
+      inline: true
+    },
+    {
+      name: "Author",
+      value: item.authorName ? `\`@${item.authorName}\`` : "Unknown",
+      inline: true
+    },
+    {
+      name: "Reactions",
+      value: `${item.reactionCount}`,
+      inline: true
+    }
+  ];
 
   if (item.showTitle) {
-    titleParts.push(item.showTitle);
+    fields.push({
+      name: "Show",
+      value: item.showTitle,
+      inline: false
+    });
+  }
+
+  if (contextLabel) {
+    fields.push({
+      name: "Feed",
+      value: contextLabel,
+      inline: false
+    });
   }
 
   return {
     color: parseColorByType(item.sourceType),
-    title: titleParts.join(": "),
-    url: item.url,
     description: truncate(item.summary ?? "No summary available."),
-    fields: [
-      {
-        name: "Author",
-        value: item.authorName ? `\`@${item.authorName}\`` : "Unknown",
-        inline: true
-      },
-      {
-        name: "Reactions",
-        value: `${item.reactionCount}`,
-        inline: true
-      },
-      {
-        name: "Source",
-        value: contextLabel ?? "Anime.com public feed",
-        inline: true
-      }
-    ],
-    footer: {
-      text: "Data fetched from Anime.com public GraphQL endpoint"
-    },
-    timestamp: item.publishedAt ?? undefined
+    fields
   };
 }
 
-async function fetchLinkedActivityPool() {
+function getEnabledFeedTypeKeys(config) {
+  return FEED_TYPE_KEYS.filter((key) => config[key]);
+}
+
+function mapFeedTypeToLinkedSourceTypes(feedTypeKeys) {
+  const sourceTypes = new Set();
+
+  for (const key of feedTypeKeys) {
+    if (key === "news") {
+      continue;
+    }
+
+    for (const sourceType of ACTIVITY_SOURCE_CONFIG[key]?.sourceTypes ?? []) {
+      sourceTypes.add(sourceType);
+    }
+  }
+
+  return [...sourceTypes];
+}
+
+async function fetchLinkedActivityPool(sourceTypes) {
   const linkedProfiles = await getAllLinkedProfiles();
   const animeProfiles = await Promise.allSettled(
     linkedProfiles.map(async ({ discordUserId, username }) => {
@@ -87,7 +126,7 @@ async function fetchLinkedActivityPool() {
         return null;
       }
 
-      const items = await fetchLinkedUserContentCandidates(profile.id, 5);
+      const items = await fetchLinkedUserContentCandidates(profile.id, sourceTypes, 5);
 
       return items.map((item) => ({
         ...item,
@@ -100,7 +139,7 @@ async function fetchLinkedActivityPool() {
   return animeProfiles
     .filter((result) => result.status === "fulfilled" && Array.isArray(result.value))
     .flatMap((result) => result.value)
-    .sort((left, right) => String(right.publishedAt ?? "").localeCompare(String(left.publishedAt ?? "")));
+      .sort((left, right) => String(right.publishedAt ?? "").localeCompare(String(left.publishedAt ?? "")));
 }
 
 function isTextSendableChannel(channel) {
@@ -119,6 +158,10 @@ export function buildActivityFeedStatusEmbed(config) {
   const enabledTypes = [
     config.reviews ? "Trending reviews" : null,
     config.discussions ? "Trending discussions" : null,
+    config.episodeDiscussions ? "Trending episode discussions" : null,
+    config.memes ? "Trending memes" : null,
+    config.polls ? "Trending polls" : null,
+    config.news ? "Trending news" : null,
     config.linkedUsers ? "Linked-user posts" : null
   ].filter(Boolean);
 
@@ -149,15 +192,17 @@ export async function runActivityFeedPass(client, guildId = null) {
     return { guilds: [], totalPosted: 0 };
   }
 
-  const needsReviews = configs.some((config) => config.reviews);
-  const needsDiscussions = configs.some((config) => config.discussions);
+  const enabledTypeKeys = [...new Set(configs.flatMap(getEnabledFeedTypeKeys))];
+  const linkedSourceTypes = mapFeedTypeToLinkedSourceTypes(enabledTypeKeys);
   const needsLinkedUsers = configs.some((config) => config.linkedUsers);
 
-  const [reviewCandidates, discussionCandidates, linkedCandidates] = await Promise.all([
-    needsReviews ? fetchTrendingReviewCandidates(12) : Promise.resolve([]),
-    needsDiscussions ? fetchTrendingDiscussionCandidates(12) : Promise.resolve([]),
-    needsLinkedUsers ? fetchLinkedActivityPool() : Promise.resolve([])
-  ]);
+  const typeCandidateEntries = await Promise.all(
+    enabledTypeKeys.map(async (typeKey) => [typeKey, await fetchTrendingCandidatesByType(typeKey, 12)])
+  );
+  const candidateMap = Object.fromEntries(typeCandidateEntries);
+  const linkedCandidates = needsLinkedUsers && linkedSourceTypes.length
+    ? await fetchLinkedActivityPool(linkedSourceTypes)
+    : [];
 
   const guildSummaries = [];
 
@@ -183,25 +228,13 @@ export async function runActivityFeedPass(client, guildId = null) {
     const postedKeys = [];
     let posted = 0;
 
-    if (config.reviews) {
-      const candidate = reviewCandidates.find((item) => !seenItems.has(item.key));
+    for (const typeKey of getEnabledFeedTypeKeys(config)) {
+      const candidate = (candidateMap[typeKey] ?? []).find((item) => !seenItems.has(item.key));
 
       if (candidate) {
         await channel.send({
-          embeds: [buildActivityEmbed(candidate, "Trending review")]
-        });
-        postedKeys.push(candidate.key);
-        seenItems.add(candidate.key);
-        posted += 1;
-      }
-    }
-
-    if (config.discussions) {
-      const candidate = discussionCandidates.find((item) => !seenItems.has(item.key));
-
-      if (candidate) {
-        await channel.send({
-          embeds: [buildActivityEmbed(candidate, "Trending discussion")]
+          content: candidate.url,
+          embeds: [buildActivityEmbed(candidate, `Trending ${ACTIVITY_SOURCE_CONFIG[typeKey]?.label?.toLowerCase() ?? "post"}`)]
         });
         postedKeys.push(candidate.key);
         seenItems.add(candidate.key);
@@ -216,9 +249,7 @@ export async function runActivityFeedPass(client, guildId = null) {
 
       for (const item of linkedItems) {
         await channel.send({
-          content: item.linkedDiscordUserId
-            ? `New Anime.com activity from <@${item.linkedDiscordUserId}>`
-            : undefined,
+          content: `${item.linkedDiscordUserId ? `New Anime.com activity from <@${item.linkedDiscordUserId}>\n` : ""}${item.url}`,
           embeds: [
             buildActivityEmbed(
               item,
