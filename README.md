@@ -16,6 +16,7 @@ The bot currently supports:
 - `/topgrowth` for 7-day aura/follower growth leaderboards
 - `/topreviews` for top reviewers and avg-rating leaders
 - `/milestones` for users nearest to their next aura/follower milestones
+- `/discoverusers` for public username discovery from show pages and review feeds
 - `/topbadges` for badge-count leaderboards
 - `/serverstats` for server bot-data summary
 - `/liststats` for compact list counts
@@ -91,6 +92,7 @@ In Discord:
 /topgrowth metric: aura7d
 /topreviews metric: avgRating min_lists: 10
 /milestones
+/discoverusers show: naruto source: all
 /topbadges type: displayed
 /serverstats
 /liststats username: anfal
@@ -102,7 +104,7 @@ In Discord:
 
 ## Notes
 
-- The bot currently uses the `GetPublicUserProfile` query against `https://www.anime.com/api/graphql`.
+- The bot currently uses Anime.com's public GraphQL endpoint at `https://www.anime.com/api/graphql` for profiles and review-backed username discovery.
 - Anime.com responses are cached briefly in memory. You can change the TTL with `ANIME_CACHE_TTL_MS`.
 - Profile history snapshots are stored locally in `DATA_DIR/profile-history.json` whenever the bot fetches a profile.
 - If Anime.com changes that query or starts blocking bot-like traffic, we may need to add retries, longer caching, or a browser-based fallback.

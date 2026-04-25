@@ -14,6 +14,7 @@ import {
   TextInputStyle
 } from "discord.js";
 import { fetchAnimeListInfo, fetchAnimeProfile, fetchAnimeRecentEntries } from "./animeProfile.js";
+import { discoverPublicUsernames } from "./discoverUsers.js";
 import { renderBadgeIcon } from "./badgeIcons.js";
 import { renderBadgeStrip } from "./badgeStrip.js";
 import {
@@ -950,6 +951,29 @@ function buildMilestonesEmbed(auraRows, followerRows, totalUsers, limit) {
   };
 }
 
+function buildDiscoveredUsersEmbed(discovery, savedCount = 0) {
+  const preview = discovery.usernames.slice(0, 25).map((username, index) => `${index + 1}. @${username}`);
+
+  return {
+    color: 0xa8dadc,
+    title: `Discovered Users: ${discovery.showSlug}`,
+    url: discovery.url,
+    description: `Public usernames found from the ${discovery.source} view on Anime.com.`,
+    fields: [
+      {
+        name: "Usernames",
+        value: preview.length ? truncate(preview.join("\n"), 1024) : "No public usernames were discovered on that page.",
+        inline: false
+      }
+    ],
+    footer: {
+      text: savedCount
+        ? `${discovery.usernames.length} found | ${savedCount} saved to tracked users`
+        : `${discovery.usernames.length} public username${discovery.usernames.length === 1 ? "" : "s"} found`
+    }
+  };
+}
+
 async function fetchBadgeLeaderboardRows(type, guildId) {
   const leaderboardProfiles = await fetchLeaderboardProfiles(guildId);
   const metricKey = type === "earned" ? "earnedBadgeCount" : "displayedBadgeCount";
@@ -1373,7 +1397,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     return;
   }
 
-  if (!["profile-raw", "badgeinfo", "badges", "recent", "listinfo", "liststats", "link", "verify", "unlink", "stats", "leaderboard", "topbadges", "toplists", "topsocial", "topgrowth", "topreviews", "milestones", "track", "untrack", "compare", "rank", "history", "serverstats"].includes(interaction.commandName)) {
+  if (!["profile-raw", "badgeinfo", "badges", "recent", "listinfo", "liststats", "link", "verify", "unlink", "stats", "leaderboard", "topbadges", "toplists", "topsocial", "topgrowth", "topreviews", "milestones", "discoverusers", "track", "untrack", "compare", "rank", "history", "serverstats"].includes(interaction.commandName)) {
     return;
   }
 
@@ -1727,6 +1751,50 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
       await interaction.editReply({
         embeds: [buildMilestonesEmbed(milestones.auraRows, milestones.followerRows, milestones.totalUsers, limit)]
+      });
+      return;
+    }
+
+    if (interaction.commandName === "discoverusers") {
+      const showSlug = interaction.options.getString("show", true);
+      const source = interaction.options.getString("source", true);
+      const shouldSave = interaction.options.getBoolean("save") ?? false;
+
+      if (shouldSave) {
+        if (!interaction.inGuild() || !interaction.guildId) {
+          await interaction.editReply("`save:true` only works inside a server.");
+          return;
+        }
+
+        if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
+          await interaction.editReply("You need the `Manage Server` permission to save discovered usernames into tracked users.");
+          return;
+        }
+      }
+
+      const discovery = await discoverPublicUsernames(showSlug, source);
+
+      if (!discovery.usernames.length) {
+        await interaction.editReply(
+          `I couldn't find public usernames on the ${source} view for \`${showSlug}\`.`
+        );
+        return;
+      }
+
+      let savedCount = 0;
+
+      if (shouldSave && interaction.guildId) {
+        for (const username of discovery.usernames) {
+          const added = await addTrackedUsername(interaction.guildId, username);
+
+          if (added) {
+            savedCount += 1;
+          }
+        }
+      }
+
+      await interaction.editReply({
+        embeds: [buildDiscoveredUsersEmbed(discovery, savedCount)]
       });
       return;
     }

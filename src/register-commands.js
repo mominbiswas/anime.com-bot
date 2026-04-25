@@ -221,6 +221,34 @@ const commands = [
   ).toJSON(),
   applyGlobalAvailability(
     new SlashCommandBuilder()
+      .setName("discoverusers")
+      .setDescription("Discover public Anime.com usernames from a show's visible public page.")
+      .addStringOption((option) =>
+        option
+          .setName("show")
+          .setDescription("Anime.com show slug, for example naruto")
+          .setRequired(true)
+      )
+      .addStringOption((option) =>
+        option
+          .setName("source")
+          .setDescription("Which public area to scan")
+          .setRequired(true)
+          .addChoices(
+            { name: "All public usernames", value: "all" },
+            { name: "Reviews section", value: "reviews" },
+            { name: "Discussions section", value: "discussions" }
+          )
+      )
+      .addBooleanOption((option) =>
+        option
+          .setName("save")
+          .setDescription("Save discovered usernames into tracked users (admins only)")
+          .setRequired(false)
+      )
+  ).toJSON(),
+  applyGlobalAvailability(
+    new SlashCommandBuilder()
       .setName("compare")
       .setDescription("Compare two public Anime.com profiles side by side.")
       .addStringOption((option) =>
