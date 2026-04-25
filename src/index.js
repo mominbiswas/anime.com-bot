@@ -14,6 +14,12 @@ import {
   TextInputStyle
 } from "discord.js";
 import { fetchAnimeListInfo, fetchAnimeProfile, fetchAnimeRecentEntries } from "./animeProfile.js";
+import { buildActivityFeedStatusEmbed, runActivityFeedPass } from "./activityFeed.js";
+import {
+  disableActivityFeed,
+  setActivityFeedConfig,
+  getActivityFeedConfig
+} from "./activityFeedStore.js";
 import { discoverPublicUsernames } from "./discoverUsers.js";
 import { renderBadgeIcon } from "./badgeIcons.js";
 import { renderBadgeStrip } from "./badgeStrip.js";
@@ -39,6 +45,7 @@ import {
 } from "./historyStore.js";
 
 const token = process.env.DISCORD_TOKEN;
+const activityFeedIntervalMs = Number.parseInt(process.env.ACTIVITY_FEED_INTERVAL_MS ?? "7200000", 10);
 const allowedUntrackUserIds = new Set(
   (process.env.UNTRACK_ALLOWED_USER_IDS ?? "")
     .split(",")
@@ -53,6 +60,7 @@ if (!token) {
 const client = new Client({
   intents: [GatewayIntentBits.Guilds]
 });
+let activityFeedRunPromise = null;
 
 function parseColor(hex) {
   if (!hex || !/^#?[0-9a-f]{6}$/i.test(hex)) {
@@ -822,6 +830,22 @@ function canUseUntrack(interaction) {
   );
 }
 
+async function runScheduledActivityFeeds(guildId = null) {
+  if (activityFeedRunPromise) {
+    return activityFeedRunPromise;
+  }
+
+  activityFeedRunPromise = (async () => {
+    try {
+      return await runActivityFeedPass(client, guildId);
+    } finally {
+      activityFeedRunPromise = null;
+    }
+  })();
+
+  return activityFeedRunPromise;
+}
+
 function buildLeaderboardEmbed(metric, rows, totalUsers, page, perPage) {
   const metricLabel = formatMetricLabel(metric);
   const start = page * perPage;
@@ -1182,6 +1206,16 @@ async function fetchProfileRanks(username, guildId) {
 
 client.once(Events.ClientReady, (readyClient) => {
   console.log(`Logged in as ${readyClient.user.tag}`);
+
+  setInterval(() => {
+    runScheduledActivityFeeds().catch((error) => {
+      console.error("Activity feed run failed:", error);
+    });
+  }, activityFeedIntervalMs);
+
+  runScheduledActivityFeeds().catch((error) => {
+    console.error("Initial activity feed run failed:", error);
+  });
 });
 
 client.on(Events.InteractionCreate, async (interaction) => {
@@ -1397,13 +1431,105 @@ client.on(Events.InteractionCreate, async (interaction) => {
     return;
   }
 
-  if (!["profile-raw", "badgeinfo", "badges", "recent", "listinfo", "liststats", "link", "verify", "unlink", "stats", "leaderboard", "topbadges", "toplists", "topsocial", "topgrowth", "topreviews", "milestones", "discoverusers", "track", "untrack", "compare", "rank", "history", "serverstats"].includes(interaction.commandName)) {
+  if (!["profile-raw", "badgeinfo", "badges", "recent", "listinfo", "liststats", "link", "verify", "unlink", "stats", "leaderboard", "topbadges", "toplists", "topsocial", "topgrowth", "topreviews", "milestones", "discoverusers", "track", "untrack", "compare", "rank", "history", "serverstats", "activityfeed", "activityfeed-status", "activityfeed-disable", "activityfeed-run"].includes(interaction.commandName)) {
     return;
   }
 
   await interaction.deferReply();
 
   try {
+    if (interaction.commandName === "activityfeed") {
+      if (!interaction.inGuild() || !interaction.guildId) {
+        await interaction.editReply("`/activityfeed` only works inside a server.");
+        return;
+      }
+
+      if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
+        await interaction.editReply("You need the `Manage Server` permission to configure the activity feed.");
+        return;
+      }
+
+      const channel = interaction.options.getChannel("channel", true);
+
+      if (!channel.isTextBased?.()) {
+        await interaction.editReply("Pick a text channel for activity feed posts.");
+        return;
+      }
+
+      const config = await setActivityFeedConfig(interaction.guildId, {
+        channelId: channel.id,
+        reviews: interaction.options.getBoolean("reviews") ?? true,
+        discussions: interaction.options.getBoolean("discussions") ?? true,
+        linkedUsers: interaction.options.getBoolean("linked_users") ?? true
+      });
+
+      await interaction.editReply({
+        embeds: [buildActivityFeedStatusEmbed(config)]
+      });
+      return;
+    }
+
+    if (interaction.commandName === "activityfeed-status") {
+      if (!interaction.inGuild() || !interaction.guildId) {
+        await interaction.editReply("`/activityfeed-status` only works inside a server.");
+        return;
+      }
+
+      const config = await getActivityFeedConfig(interaction.guildId);
+      await interaction.editReply({
+        embeds: [buildActivityFeedStatusEmbed(config)]
+      });
+      return;
+    }
+
+    if (interaction.commandName === "activityfeed-disable") {
+      if (!interaction.inGuild() || !interaction.guildId) {
+        await interaction.editReply("`/activityfeed-disable` only works inside a server.");
+        return;
+      }
+
+      if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
+        await interaction.editReply("You need the `Manage Server` permission to disable the activity feed.");
+        return;
+      }
+
+      const disabled = await disableActivityFeed(interaction.guildId);
+      await interaction.editReply(
+        disabled
+          ? "Disabled the Anime.com activity feed for this server."
+          : "There is no activity feed configured for this server right now."
+      );
+      return;
+    }
+
+    if (interaction.commandName === "activityfeed-run") {
+      if (!interaction.inGuild() || !interaction.guildId) {
+        await interaction.editReply("`/activityfeed-run` only works inside a server.");
+        return;
+      }
+
+      if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
+        await interaction.editReply("You need the `Manage Server` permission to run the activity feed manually.");
+        return;
+      }
+
+      const config = await getActivityFeedConfig(interaction.guildId);
+
+      if (!config) {
+        await interaction.editReply("Set up the feed first with `/activityfeed channel:<channel>`.");
+        return;
+      }
+
+      const result = await runScheduledActivityFeeds(interaction.guildId);
+      const summary = result.guilds[0];
+      await interaction.editReply(
+        summary?.posted
+          ? `Posted ${summary.posted} Anime.com activity update${summary.posted === 1 ? "" : "s"} into <#${config.channelId}>.`
+          : `No new Anime.com activity was available for <#${config.channelId}> right now.`
+      );
+      return;
+    }
+
     if (interaction.commandName === "link") {
       const existingLinkedUsername = await getLinkedUsername(interaction.user.id);
 
