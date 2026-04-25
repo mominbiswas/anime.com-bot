@@ -16,6 +16,7 @@ import {
 import { fetchAnimeListInfo, fetchAnimeProfile, fetchAnimeRecentEntries } from "./animeProfile.js";
 import { buildActivityFeedStatusEmbed, runActivityFeedPass } from "./activityFeed.js";
 import {
+  buildDefaultActivityTypeSettings,
   disableActivityFeed,
   setActivityFeedConfig,
   getActivityFeedConfig
@@ -1431,7 +1432,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     return;
   }
 
-  if (!["profile-raw", "badgeinfo", "badges", "recent", "listinfo", "liststats", "link", "verify", "unlink", "stats", "leaderboard", "topbadges", "toplists", "topsocial", "topgrowth", "topreviews", "milestones", "discoverusers", "track", "untrack", "compare", "rank", "history", "serverstats", "activityfeed", "activityfeed-status", "activityfeed-disable", "activityfeed-run"].includes(interaction.commandName)) {
+  if (!["profile-raw", "badgeinfo", "badges", "recent", "listinfo", "liststats", "link", "verify", "unlink", "stats", "leaderboard", "topbadges", "toplists", "topsocial", "topgrowth", "topreviews", "milestones", "discoverusers", "track", "untrack", "compare", "rank", "history", "serverstats", "activityfeed", "activityfeed-status", "activityfeed-settings", "activityfeed-disable", "activityfeed-run"].includes(interaction.commandName)) {
     return;
   }
 
@@ -1482,6 +1483,77 @@ client.on(Events.InteractionCreate, async (interaction) => {
       const config = await getActivityFeedConfig(interaction.guildId);
       await interaction.editReply({
         embeds: [buildActivityFeedStatusEmbed(config)]
+      });
+      return;
+    }
+
+    if (interaction.commandName === "activityfeed-settings") {
+      if (!interaction.inGuild() || !interaction.guildId) {
+        await interaction.editReply("`/activityfeed-settings` only works inside a server.");
+        return;
+      }
+
+      if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
+        await interaction.editReply("You need the `Manage Server` permission to manage feed filters.");
+        return;
+      }
+
+      const config = await getActivityFeedConfig(interaction.guildId);
+
+      if (!config) {
+        await interaction.editReply("Set up the feed first with `/activityfeed channel:<channel>`.");
+        return;
+      }
+
+      const subcommand = interaction.options.getSubcommand();
+
+      if (subcommand === "view") {
+        await interaction.editReply({
+          embeds: [buildActivityFeedStatusEmbed(config)]
+        });
+        return;
+      }
+
+      const typeKey = interaction.options.getString("type", true);
+      const defaultSettings = buildDefaultActivityTypeSettings();
+
+      if (subcommand === "reset") {
+        const nextConfig = await setActivityFeedConfig(interaction.guildId, {
+          typeSettings: {
+            [typeKey]: defaultSettings[typeKey]
+          }
+        });
+
+        await interaction.editReply({
+          content: "Reset that feed type back to the default filters.",
+          embeds: [buildActivityFeedStatusEmbed(nextConfig)]
+        });
+        return;
+      }
+
+      const maxAgeDays = interaction.options.getInteger("max_age_days");
+      const minReactions = interaction.options.getInteger("min_reactions");
+      const maxPostsPerRun = interaction.options.getInteger("max_posts_per_run");
+
+      if (maxAgeDays == null && minReactions == null && maxPostsPerRun == null) {
+        await interaction.editReply("Pick at least one setting to change.");
+        return;
+      }
+
+      const currentTypeSettings = config.typeSettings?.[typeKey] ?? defaultSettings[typeKey];
+      const nextConfig = await setActivityFeedConfig(interaction.guildId, {
+        typeSettings: {
+          [typeKey]: {
+            maxAgeDays: maxAgeDays ?? currentTypeSettings.maxAgeDays,
+            minReactions: minReactions ?? currentTypeSettings.minReactions,
+            maxPostsPerRun: maxPostsPerRun ?? currentTypeSettings.maxPostsPerRun
+          }
+        }
+      });
+
+      await interaction.editReply({
+        content: "Updated the feed filters for that post type.",
+        embeds: [buildActivityFeedStatusEmbed(nextConfig)]
       });
       return;
     }

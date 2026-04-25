@@ -13,7 +13,7 @@ export const ACTIVITY_SOURCE_CONFIG = {
   },
   episodeDiscussions: {
     sourceTypes: ["DISCUSSION"],
-    label: "Episode Discussion"
+    label: "Ep Discussion"
   },
   memes: {
     sourceTypes: ["MEME"],

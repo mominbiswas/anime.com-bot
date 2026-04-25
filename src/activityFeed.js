@@ -6,13 +6,26 @@ import {
   fetchTrendingCandidatesByType
 } from "./animeActivity.js";
 import {
+  ACTIVITY_FEED_TYPE_KEYS,
   getActivityFeedConfig,
   getAllActivityFeedConfigs,
   markActivityFeedItemsSeen
 } from "./activityFeedStore.js";
 
 const MAX_LINKED_ITEMS_PER_RUN = 5;
-const FEED_TYPE_KEYS = ["reviews", "discussions", "episodeDiscussions", "memes", "polls", "news"];
+const FEED_TYPE_KEYS = ACTIVITY_FEED_TYPE_KEYS;
+const TRENDING_CANDIDATE_POOL_SIZE = 24;
+
+function formatFeedTypeLabel(typeKey) {
+  return {
+    reviews: "Reviews",
+    discussions: "Discussions",
+    episodeDiscussions: "Ep Discussions",
+    memes: "Memes",
+    polls: "Polls",
+    news: "News"
+  }[typeKey] ?? typeKey;
+}
 
 function parseColorByType(sourceType) {
   if (sourceType === "REVIEW") {
@@ -37,7 +50,7 @@ function parseColorByType(sourceType) {
 function formatSourceTypeLabel(sourceType) {
   return {
     REVIEW: "Review",
-    DISCUSSION: "Episode Discussion",
+    DISCUSSION: "Ep Discussion",
     GENERAL_DISCUSSION: "Discussion",
     MEME: "Meme",
     POLL: "Poll",
@@ -64,18 +77,31 @@ function buildActivityEmbed(item) {
         name: "Reactions",
         value: `${item.reactionCount}`,
         inline: true
-      },
-      {
-        name: "Link",
-        value: `[Open Post](${item.url})`,
-        inline: false
       }
     ]
   };
 }
 
+function getTypeSettings(config, typeKey) {
+  return config?.typeSettings?.[typeKey] ?? {
+    maxAgeDays: 2,
+    minReactions: 0,
+    maxPostsPerRun: 1
+  };
+}
+
 function getEnabledFeedTypeKeys(config) {
   return FEED_TYPE_KEYS.filter((key) => config[key]);
+}
+
+function getFeedTypeKeyForItem(item) {
+  if (!item?.sourceType) {
+    return null;
+  }
+
+  return FEED_TYPE_KEYS.find((key) =>
+    (ACTIVITY_SOURCE_CONFIG[key]?.sourceTypes ?? []).includes(item.sourceType)
+  ) ?? null;
 }
 
 function mapFeedTypeToLinkedSourceTypes(feedTypeKeys) {
@@ -124,6 +150,38 @@ function isTextSendableChannel(channel) {
   return Boolean(channel?.isTextBased?.() && channel?.send);
 }
 
+function isItemTooOld(item, maxAgeDays) {
+  if (!item?.publishedAt || !Number.isFinite(maxAgeDays) || maxAgeDays <= 0) {
+    return false;
+  }
+
+  const publishedAt = new Date(item.publishedAt);
+
+  if (Number.isNaN(publishedAt.getTime())) {
+    return false;
+  }
+
+  return Date.now() - publishedAt.getTime() > maxAgeDays * 86400000;
+}
+
+function filterItemsBySettings(items, settings, seenItems) {
+  return items.filter((item) => {
+    if (seenItems?.has(item.key)) {
+      return false;
+    }
+
+    if (item.reactionCount < settings.minReactions) {
+      return false;
+    }
+
+    if (isItemTooOld(item, settings.maxAgeDays)) {
+      return false;
+    }
+
+    return true;
+  });
+}
+
 export function buildActivityFeedStatusEmbed(config) {
   if (!config) {
     return {
@@ -136,12 +194,16 @@ export function buildActivityFeedStatusEmbed(config) {
   const enabledTypes = [
     config.reviews ? "Trending reviews" : null,
     config.discussions ? "Trending discussions" : null,
-    config.episodeDiscussions ? "Trending episode discussions" : null,
+    config.episodeDiscussions ? "Trending ep discussions" : null,
     config.memes ? "Trending memes" : null,
     config.polls ? "Trending polls" : null,
     config.news ? "Trending news" : null,
     config.linkedUsers ? "Linked-user posts" : null
   ].filter(Boolean);
+  const settingsLines = FEED_TYPE_KEYS.map((typeKey) => {
+    const settings = getTypeSettings(config, typeKey);
+    return `**${formatFeedTypeLabel(typeKey)}**  |  Max age ${settings.maxAgeDays}d  |  Min reactions ${settings.minReactions}  |  Max posts ${settings.maxPostsPerRun}`;
+  });
 
   return {
     color: 0x8ecae6,
@@ -151,6 +213,11 @@ export function buildActivityFeedStatusEmbed(config) {
       {
         name: "Enabled Streams",
         value: enabledTypes.length ? enabledTypes.join("\n") : "None",
+        inline: false
+      },
+      {
+        name: "Per-Type Filters",
+        value: settingsLines.join("\n"),
         inline: false
       }
     ],
@@ -175,7 +242,7 @@ export async function runActivityFeedPass(client, guildId = null) {
   const needsLinkedUsers = configs.some((config) => config.linkedUsers);
 
   const typeCandidateEntries = await Promise.all(
-    enabledTypeKeys.map(async (typeKey) => [typeKey, await fetchTrendingCandidatesByType(typeKey, 12)])
+    enabledTypeKeys.map(async (typeKey) => [typeKey, await fetchTrendingCandidatesByType(typeKey, TRENDING_CANDIDATE_POOL_SIZE)])
   );
   const candidateMap = Object.fromEntries(typeCandidateEntries);
   const linkedCandidates = needsLinkedUsers && linkedSourceTypes.length
@@ -207,13 +274,15 @@ export async function runActivityFeedPass(client, guildId = null) {
     let posted = 0;
 
     for (const typeKey of getEnabledFeedTypeKeys(config)) {
-      const candidate = (candidateMap[typeKey] ?? []).find((item) => !seenItems.has(item.key));
+      const settings = getTypeSettings(config, typeKey);
+      const candidates = filterItemsBySettings(candidateMap[typeKey] ?? [], settings, seenItems)
+        .slice(0, settings.maxPostsPerRun);
 
-      if (candidate) {
+      for (const candidate of candidates) {
         await channel.send({
-          content: candidate.url,
           embeds: [buildActivityEmbed(candidate)]
         });
+        await channel.send(candidate.url);
         postedKeys.push(candidate.key);
         seenItems.add(candidate.key);
         posted += 1;
@@ -222,14 +291,23 @@ export async function runActivityFeedPass(client, guildId = null) {
 
     if (config.linkedUsers) {
       const linkedItems = linkedCandidates
-        .filter((item) => !seenItems.has(item.key))
+        .filter((item) => {
+          const typeKey = getFeedTypeKeyForItem(item);
+
+          if (!typeKey || !config[typeKey]) {
+            return false;
+          }
+
+          return filterItemsBySettings([item], getTypeSettings(config, typeKey), seenItems).length > 0;
+        })
         .slice(0, MAX_LINKED_ITEMS_PER_RUN);
 
       for (const item of linkedItems) {
         await channel.send({
-          content: `${item.linkedDiscordUserId ? `New Anime.com activity from <@${item.linkedDiscordUserId}>\n` : ""}${item.url}`,
+          content: item.linkedDiscordUserId ? `New Anime.com activity from <@${item.linkedDiscordUserId}>` : undefined,
           embeds: [buildActivityEmbed(item)]
         });
+        await channel.send(item.url);
 
         postedKeys.push(item.key);
         seenItems.add(item.key);
