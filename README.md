@@ -98,7 +98,7 @@ In Discord:
 /topreviews metric: avgRating min_lists: 10
 /milestones
 /discoverusers show: naruto source: all
-/activityfeed channel:#anime-feed reviews:true discussions:true linked_users:true
+/activityfeed channel:#anime-feed reviews:true discussions:true episode_discussions:true memes:true polls:true news:true linked_users:true
 /activityfeed-status
 /activityfeed-run
 /topbadges type: displayed
@@ -115,6 +115,7 @@ In Discord:
 - The bot currently uses Anime.com's public GraphQL endpoint at `https://www.anime.com/api/graphql` for profiles and review-backed username discovery.
 - Activity feeds are stored locally in `DATA_DIR/activity-feeds.json` and dedupe previously posted items per server.
 - The activity feed loop defaults to every 2 hours. You can override that with `ACTIVITY_FEED_INTERVAL_MS`.
+- Activity feed messages include the direct Anime.com post URL so Discord can unfurl the native link preview alongside the bot's summary embed.
 - Anime.com responses are cached briefly in memory. You can change the TTL with `ANIME_CACHE_TTL_MS`.
 - Profile history snapshots are stored locally in `DATA_DIR/profile-history.json` whenever the bot fetches a profile.
 - If Anime.com changes that query or starts blocking bot-like traffic, we may need to add retries, longer caching, or a browser-based fallback.
